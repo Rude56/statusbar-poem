@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">状态栏古诗</string>
+    <!-- 现代 libxposed 模块用 android:description 作为模块描述（不再用 xposeddescription）。 -->
+    <string name="module_description">诗句从状态栏右侧滚入，只遮住诗句正下方那一小段，播完把时钟还给你，停一会儿再播下一首。完全离线，省电。只作用于系统界面。</string>
+
+    <!-- 导航 -->
+    <string name="tab_overview">概览</string>
+    <string name="tab_library">古诗库</string>
+    <string name="tab_settings">设置</string>
+    <string name="back">返回</string>
+    <string name="library_title">古诗库</string>
+    <string name="holes_title">洞</string>
+    <string name="whitelist_title">白名单应用</string>
+    <string name="about_title">关于</string>
+    <string name="about_desc">版本、原理与常见问题</string>
+
+    <!-- 概览 -->
+    <string name="status_running">正在运行</string>
+    <string name="status_off">已关闭</string>
+    <string name="enable_module">启用模块</string>
+    <string name="overview_hole_count">%1$d 个</string>
+    <string name="overview_empty">诗库为空</string>
+    <string name="overview_not_set">未设置</string>
+    <string name="overview_none">未选择</string>
+    <string name="overview_app_count">%1$d 个</string>
+    <string name="overview_getting_started">三步开始使用</string>
+    <string name="step_enable_title">打开上面的开关</string>
+    <string name="step_enable_desc">打开后诗句才会出现在状态栏</string>
+    <string name="step_library_title">确认古诗库</string>
+    <string name="step_library_desc">已内置 6 首，可以增删改</string>
+    <string name="step_holes_title">按需设置洞</string>
+    <string name="step_holes_desc">刘海或挖孔屏可以框出那一段，不需要就留空</string>
+    <string name="overview_scope_hint">本模块只对「系统界面」生效，改完可能需要重启系统界面。</string>
+
+    <!-- 设置分组 -->
+    <string name="section_playback">播放</string>
+    <string name="section_display">显示内容</string>
+    <string name="section_holes">洞与挖孔</string>
+    <string name="section_pause">暂停条件</string>
+    <string name="section_maintenance">维护</string>
+
+    <string name="speed_label">滚动速度</string>
+    <string name="speed_desc">数值越大滚得越快</string>
+    <string name="clock_label">原生时间停留</string>
+    <string name="clock_desc">一首播完，先显示多久原生时间再播下一首</string>
+    <string name="order_label">播放顺序</string>
+    <string name="order_sequential">按列表顺序</string>
+    <string name="order_random">随机</string>
+    <string name="show_author">显示作者</string>
+    <string name="show_author_desc">关掉后作者不显示，也不占位置</string>
+    <string name="show_source">显示出处</string>
+    <string name="show_source_desc">关掉后出处不显示，也不占位置</string>
+    <string name="bob_enabled">上下浮动</string>
+    <string name="bob_desc">每首诗上下错开一点点，避免每首都卡在同一高度</string>
+    <string name="holes_desc">诗句在状态栏上「消失」或「穿越」的那一段</string>
+    <string name="landscape_pause">横屏时暂停</string>
+    <string name="landscape_pause_desc">横屏状态栏布局不一样，暂停更稳妥</string>
+    <string name="lockscreen_pause">锁屏时暂停</string>
+    <string name="lockscreen_pause_desc">锁屏界面不滚诗，解锁后继续</string>
+    <string name="whitelist_entry_desc">这些应用在前台时暂停滚动</string>
+    <string name="restart_systemui">重启系统界面</string>
+    <string name="restart_systemui_desc">装好或更新模块后要重启一次才会生效。需要 root 权限。</string>
+    <string name="restart_failed">重启失败：没有拿到 root 权限</string>
+    <string name="footer_offline">所有设置只存在本机，模块不联网。</string>
+
+    <!-- 古诗库 -->
+    <string name="add_poem">添加诗句</string>
+    <string name="poem_add_title">添加诗句</string>
+    <string name="poem_edit_title">编辑诗句</string>
+    <string name="library_summary">共 %1$d 首 · 启用 %2$d 首</string>
+    <string name="library_swipe_hint">左滑删除 · 长按拖动排序</string>
+    <string name="poem_import">导入</string>
+    <string name="poem_export">导出</string>
+    <string name="poem_copy">复制</string>
+    <string name="poem_copied">已复制到剪贴板</string>
+    <string name="poem_export_file">存成文件</string>
+    <string name="poem_export_done">已导出到所选文件</string>
+    <string name="poem_export_failed">导出失败，换个位置再试</string>
+    <string name="library_search">搜索诗句、作者或出处</string>
+    <string name="library_no_match">没有找到匹配的诗句</string>
+    <string name="poem_import_desc">一行一首，写成「诗句|作者|出处」。作者和出处可以不写，重复的会自动跳过。</string>
+    <string name="poem_import_hint">长风破浪会有时，直挂云帆济沧海。|李白|行路难</string>
+    <string name="poem_import_from_file">从文件导入</string>
+    <string name="poem_import_read_failed">这个文件读不出来，换一个试试</string>
+    <string name="poem_import_confirm">导入</string>
+    <string name="poem_import_parsed">已识别 %1$d 首</string>
+    <string name="poem_export_desc">一行一首，格式是「诗句|作者|出处」。可以复制走，也可以存成文件，之后还能导回来。</string>
+    <string name="import_result">导入完成：新增 %1$d 首，跳过 %2$d 首重复</string>
+    <string name="delete">删除</string>
+    <string name="delete_confirm">确认删除？</string>
+    <string name="deleted_one">已删除</string>
+    <string name="undo">撤销</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="poem_text">诗句</string>
+    <string name="poem_text_hint">例如：长风破浪会有时，直挂云帆济沧海。</string>
+    <string name="poem_text_counter">%1$d 字</string>
+    <string name="poem_author">作者</string>
+    <string name="poem_source">出处</string>
+    <string name="poem_author_source_hint">作者和出处可以不填。填了之后要不要显示，在「设置 → 显示内容」里改。</string>
+    <string name="poem_empty_error">诗句不能为空</string>
+    <string name="duplicate_poem">这首诗已经在诗库里了</string>
+    <string name="empty_library_title">诗库是空的</string>
+    <string name="empty_library_hint">至少加一首诗才会开始播放。删掉的内置诗不会在升级后自动回来。</string>
+
+    <!-- 洞 -->
+    <string name="hole_preview_text">长风破浪会有时，直挂云帆济沧海</string>
+    <string name="hole_preview_tunnel_hint">隧道：位置和速度都不变，洞里的字被挡住看不见</string>
+    <string name="hole_preview_wormhole_hint">虫洞：字走到洞口就出现在另一边，一个字都不丢</string>
+    <string name="hole_mode_title">穿越方式</string>
+    <string name="hole_mode_wormhole">虫洞</string>
+    <string name="hole_mode_tunnel">隧道</string>
+    <string name="hole_mode_wormhole_desc">像传送门：字到洞口右侧，立刻出现在洞口左侧，中间那段不画。整句因此会提前滚完。</string>
+    <string name="hole_mode_tunnel_desc">像火车进隧道：诗句的位置和速度完全不变，只是落在洞里的那一段被挡住。</string>
+    <string name="hole_add">添加洞</string>
+    <string name="hole_left">左边界</string>
+    <string name="hole_right">右边界</string>
+    <string name="hole_summary">%1$d – %2$d px · 宽 %3$d px</string>
+    <string name="hole_legend_hint">洞只影响诗句，不会挡住状态栏上的时钟和图标。</string>
+    <string name="hole_samples_title">两种穿越方式</string>
+    <string name="hole_delete_confirm">删除这个洞？</string>
+    <string name="hole_delete_confirm_desc">%1$d – %2$d px（宽 %3$d px）。删掉后诗句会重新盖过这一段。</string>
+    <string name="hole_edit_title">编辑洞</string>
+    <string name="hole_color_hint">颜色和状态栏上那个框一致</string>
+    <string name="hole_invalid_range">右边界必须比左边界大</string>
+    <string name="hole_overlap">这一段和「洞 %1$d」（%2$d – %3$d px）重叠了，洞之间不能重叠</string>
+
+    <!-- 主页：LSPosed 连接自检 -->
+    <string name="lsp_connected">模块已生效</string>
+    <string name="lsp_connected_desc">系统界面 %1$d 秒前刚来读过配置，说明模块正在工作。</string>
+    <string name="lsp_not_connected">模块没有生效</string>
+    <string name="lsp_not_connected_desc">系统界面一次都没来读过配置，说明 LSPosed 还没把模块装进去。按顺序检查：</string>
+    <string name="lsp_step_enable">LSPosed → 模块 → 勾选「状态栏古诗」，然后重启手机或重启系统界面</string>
+    <string name="lsp_step_scope">作用域已经固定为「系统界面」，LSPosed 里那一栏是只读的，不用手动勾</string>
+    <string name="lsp_step_restart">装完或改完作用域后，必须重启系统界面（设置 → 维护）才会跑新代码</string>
+
+    <!-- 主页：配置速览 -->
+    <string name="summary_title">当前配置</string>
+    <string name="summary_speed">滚动速度</string>
+    <string name="summary_speed_value">%1$d px/s</string>
+    <string name="summary_clock">原生时间停留</string>
+    <string name="summary_clock_zero">不停留</string>
+    <string name="summary_seconds_value">%1$d 秒</string>
+    <string name="summary_order">播放顺序</string>
+    <string name="summary_poems">古诗库</string>
+    <string name="summary_poems_value">启用 %1$d / 共 %2$d 首</string>
+    <string name="summary_holes">洞</string>
+    <string name="hole_screen_width">屏幕宽 %1$d px，坐标从屏幕左边缘算起。</string>
+    <string name="hole_max_reached">最多只能设 %1$d 个洞</string>
+    <string name="hole_no_room">状态栏上已经放不下新的洞了，先删一个或改小一点</string>
+    <string name="holes_empty_title">还没有设置洞</string>
+    <string name="holes_empty_desc">状态栏有刘海或挖孔的话，可以在这里框出那一段，让诗句避开它。没有就留空。</string>
+
+    <!-- 白名单 -->
+    <string name="whitelist_search">搜索应用</string>
+    <string name="whitelist_empty_short">还没选应用，不会因为应用而暂停</string>
+    <string name="whitelist_selected_count">已选 %1$d 个应用</string>
+    <string name="whitelist_clear">清空</string>
+    <string name="whitelist_no_match">没有找到匹配的应用</string>
+
+    <!-- 关于 -->
+    <string name="version_label">版本 %1$s</string>
+    <string name="about_usage">使用说明</string>
+    <string name="about_scope_title">只对系统界面生效</string>
+    <string name="about_scope_body">模块通过 LSPosed 注入「系统界面」（com.android.systemui）。作用域已固定为系统界面，不需要也不应该勾选其它应用。</string>
+    <string name="about_restart_title">改完没反应？</string>
+    <string name="about_restart_body">装好或更新模块后，系统界面还在跑旧代码。到「设置 → 维护」点一次「重启系统界面」，或者直接重启手机。</string>
+    <string name="about_holes_title">洞是什么</string>
+    <string name="about_holes_body">洞是状态栏上的一段横向区间。隧道会把落在这段的诗句挡住；虫洞会让字直接跳到另一侧。两者都只作用于诗句，不影响时钟和图标。</string>
+    <string name="about_privacy">隐私</string>
+    <string name="about_offline_title">完全离线</string>
+    <string name="about_offline_body">模块不申请联网权限，诗库和设置全部存在本机。白名单需要读取已安装应用列表，只用来判断当前是哪个应用在前台。</string>
+    <string name="about_footer">状态栏古诗 · 本地运行 · 无网络请求</string>
+
+    <!-- 单位与杂项 -->
+    <string name="seconds">秒</string>
+    <string name="px_per_second">px/s</string>
+    <string name="move_up">上移</string>
+    <string name="move_down">下移</string>
+</resources>

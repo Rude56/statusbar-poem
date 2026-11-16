@@ -1,0 +1,17 @@
+# Gradle / 构建产物
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+
+# 工具链（本地自举，不进仓库）
+.toolchain/
+
+# 交付产物
+dist/
+
+# 系统
+.DS_Store
+Thumbs.db
