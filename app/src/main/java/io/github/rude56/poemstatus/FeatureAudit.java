@@ -2,13 +2,11 @@ package io.github.rude56.poemstatus;
 
 /**
  * 结构性事实常量：入口文案、二级页标题、LSPosed 作用域、权限。
- *
- * <p>这几个值是「产品契约」，会同时被 UI、Manifest、resources 引用，
- * 也由 JVM 审计测试直接读取源码/资源文件做交叉校验，防止日后误改。
+ * 这些值同时被 UI、Manifest、resources 引用，也由 JVM 测试交叉校验，不得随意改动。
  */
 public final class FeatureAudit {
 
-    /** 主页上的入口名称（需求里定的功能名）。 */
+    /** 主页上的入口名称。 */
     public static final String ENTRY_TITLE = "古诗虫";
     /** 二级页面（诗库）标题。 */
     public static final String LIBRARY_SCREEN_TITLE = "古诗库";

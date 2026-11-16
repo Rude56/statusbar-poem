@@ -12,6 +12,13 @@ local.properties
 # 交付产物
 dist/
 
+# 发布签名（口令不进仓库；模板见 keystore.properties.example）
+keystore.properties
+keystore/*.keystore
+keystore/*.jks
+keystore/*.b64
+!keystore/.gitkeep
+
 # 系统
 .DS_Store
 Thumbs.db

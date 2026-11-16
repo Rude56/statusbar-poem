@@ -6,17 +6,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 帧节奏。
+ * 帧节奏：按速度自适应回调间隔，低速时减少唤醒、高速时封顶 30fps。
  *
- * <p><b>这个测试文件曾经「覆盖」的是一段死代码</b>：
- * {@code FramePacer} 里原本还有 {@code reset/advance/delayMs/shouldDraw} 一套
- * 实例状态机，测试把它们逐条断言得很仔细，但生产代码里这些方法
- * <b>零调用</b> —— 真正跑在设备上的是 {@code PoetRuntime.OverlayView} 里
- * 按速度自适应的实现。也就是说：测试全绿，真实调度逻辑却没有任何测试盯着。
- *
- * <p>那套实例方法已删除，这里只测<b>真正被运行时调用的那个纯函数</b>
- * （{@code intervalNsForSpeed}），外加把「运行时确实调用它」钉在
- * {@code PowerRegressionTest} 里。
+ * 只覆盖运行时真正调用的纯函数 {@code intervalNsForSpeed}。
  */
 public class FramePacerTest {
 
@@ -31,7 +23,7 @@ public class FramePacerTest {
     /**
      * 帧间隔随速度自适应：低速时少醒，高速时回到 30fps 封顶。
      *
-     * <p>依据：「位移不足 1px 不绘制」这条规则可以提前到调度阶段 ——
+     * 依据：「位移不足 1px 不绘制」这条规则可以提前到调度阶段 ——
      * 走 1px 需要 {@code 1000/speed} 毫秒，与其每 33ms 醒来空转一次，
      * 不如直接按这个时间要下一帧。
      */
@@ -55,7 +47,7 @@ public class FramePacerTest {
         // 极端低速不得让间隔无限增长（否则掉帧/暂停都没法及时反映）。
         assertEquals(FramePacer.MAX_ADAPTIVE_INTERVAL_NS, FramePacer.intervalNsForSpeed(1));
         assertTrue(FramePacer.intervalNsForSpeed(1) <= FramePacer.MAX_ADAPTIVE_INTERVAL_NS);
-        // 非法速度按封顶帧率处理，绝不返回 0 或负数（会导致死循环式 post）。
+        // 非法速度按封顶帧率处理，绝不返回 0 或负数（会造成死循环式 post）。
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(0));
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(-5));
     }
@@ -63,8 +55,7 @@ public class FramePacerTest {
     /**
      * 间隔必须随速度单调不减：速度越慢，醒得越少。
      *
-     * <p>这条断言能抓住「改公式时把大小关系写反」这类错误 ——
-     * 那样低速反而会更高频地醒来，纯耗电且肉眼无感。
+     * 这条断言能抓住「改公式时把大小关系写反」——那样低速反而会更高频地醒来。
      */
     @Test
     public void slowerSpeedNeverWakesMoreOften() {

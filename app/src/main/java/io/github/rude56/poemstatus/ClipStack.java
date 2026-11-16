@@ -1,25 +1,6 @@
 package io.github.rude56.poemstatus;
 
-/**
- * 画布裁剪的 save 计数栈（纯逻辑，可在 JVM 里直接测）。
- *
- * <p><b>为什么需要一个栈而不是一个 int</b>：{@code HolePuncher} 在
- * {@code View.draw()} 里做 {@code save()} / {@code clipOutRect()} / {@code restore()}。
- * 以前只用一个 {@code savedClips} 计数，并且每次 {@code beginClip} 都先把它清零。
- * 一旦 {@code draw} 被<b>重入</b>（同一个 View 在一次绘制里被调用两次，
- * 例如带硬件层的子树、或者某些 ROM 的预绘制流程），内层会把外层的计数抹掉：
- * <pre>
- *   beginClip  → savedClips = 0，然后 = 1
- *   beginClip  → savedClips = 0，然后 = 1   ← 外层的 1 被抹掉
- *   endClip    → restore 一次，savedClips = 0
- *   endClip    → 看到 0，直接 return，<b>不再 restore</b>
- * </pre>
- * 结果就是画布裁剪<b>永久留在</b>了内容根上 —— 状态栏图标被永久挖掉一块，
- * 而且没有任何日志，只能重启 SystemUI 才能恢复。
- *
- * <p>所以改成真正的栈：入栈记下这一层的 saveCount，出栈时还原到该层。
- * 深度固定上限（绘制嵌套不会很深），数组复用、零分配。
- */
+/** 画布裁剪的 save 计数栈。View.draw 可能重入，单一计数会被内层抹掉导致裁剪永久残留。 */
 final class ClipStack {
 
     /** 嵌套深度上限。真实绘制嵌套远小于此值，超出时忽略多余层（安全降级为不裁剪）。 */

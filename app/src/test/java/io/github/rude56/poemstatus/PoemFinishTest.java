@@ -8,22 +8,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 「一首诗什么时候结束」—— 必须按<b>屏幕上最后一个字消失</b>判定，不能按轨道走完。
+ * 「一首诗什么时候结束」—— 必须按屏幕上最后一个字消失判定，不能按轨道走完。
  *
- * <p>用户报的现象：「诗穿过一个比较长的虫洞后要等好久才来下一首」。
- *
- * <p>根因：运行时用 {@code left + width < 0} 判结束，这等于假设「轨道坐标 = 屏幕坐标」。
- * 但虫洞把整句<b>往左瞬移</b>了一个洞宽 —— 屏幕上早就没字了，轨道还要再走一个洞宽。
- * 空等时长 = 洞宽 ÷ 速度，且这段时间屏幕完全空白：
- * <pre>
- *   洞宽 610px / 172px/s → 3.5 秒
- *   洞宽 770px / 172px/s → 4.5 秒
- *   洞宽 1000px/ 172px/s → 5.8 秒
- * </pre>
- *
- * <p>这一组是<b>行为验证</b>：用真实的 {@link HoleRects#wormholeSegments} 逐帧算屏幕上的
- * 实际绘制范围，找出「最后一个像素消失」的那一刻，再与 {@link HoleRects#finishLeft}
- * 给出的判据比较。两者必须一致。
+ * 虫洞把整句往左瞬移一个洞宽：屏幕上早就没字了，轨道还要再走一个洞宽，
+ * 那段空等时长 = 洞宽 ÷ 速度。用真实的 {@link HoleRects#wormholeSegments} 逐帧算出
+ * 「最后一个像素消失」的时刻，与 {@link HoleRects#finishLeft} 的判据比较，两者必须一致。
  */
 public class PoemFinishTest {
 
@@ -58,7 +47,7 @@ public class PoemFinishTest {
     /**
      * {@code finishLeft} 必须正好等于「最后一个像素消失」的那个轨道左端。
      *
-     * <p>做法：以 0.5px 步长扫描轨道左端，找到最后一个「还有像素」的位置，
+     * 做法：以 0.5px 步长扫描轨道左端，找到最后一个「还有像素」的位置，
      * 与 {@code finishLeft} 比较，允许一个步长的误差。
      */
     private static void assertFinishMatchesReality(String holesRaw, float textWidth) {
@@ -94,7 +83,7 @@ public class PoemFinishTest {
 
     @Test
     public void finishIsExactForTheCurrentWideWormhole() {
-        // 本机当前配置：洞宽 610px。
+        // 洞宽 610px。
         assertFinishMatchesReality("670:1280:wormhole:0", 800f);
     }
 
@@ -123,19 +112,17 @@ public class PoemFinishTest {
     }
 
     /**
-     * 省下的空等时间必须正好等于「洞宽 ÷ 速度」。
-     *
-     * <p>这条把「用户感知」直接钉成数字：改之前每次换首前空白 3.5 秒。
+     * 结束判据相对「轨道走完」省下的空等时间必须正好等于「洞宽 ÷ 速度」。
      */
     @Test
     public void savedDeadTimeEqualsHoleWidthOverSpeed() {
         List<HoleRects.Hole> holes = HoleRects.parse("670:1280:wormhole:0");
         float textWidth = 800f;
-        float oldFinish = -textWidth;                                  // 旧判据
+        float oldFinish = -textWidth;                                  // 轨道走完的判据
         float newFinish = HoleRects.finishLeft(holes, textWidth);
         float savedSeconds = (newFinish - oldFinish) / SPEED;
         assertEquals("省下的时间必须正好是洞宽÷速度", 610f / SPEED, savedSeconds, 0.001f);
-        assertTrue("这条配置下确实省下了 3.5 秒以上", savedSeconds > 3.5f);
+        assertTrue("这条配置下的空等时间必须超过 3.5 秒", savedSeconds > 3.5f);
     }
 
     /** 多个虫洞时省下的时间 = 总洞宽 ÷ 速度（位移是累加的）。 */

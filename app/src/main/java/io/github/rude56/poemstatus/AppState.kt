@@ -5,9 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 
 /**
  * 极简的全局状态桥：把 SharedPreferences 里的配置映射成 Compose 可观察状态。
- *
- * <p>只有设置界面用它；SystemUI 进程完全不加载本类（LSPosed 只会加载被 Hook 的
- * 那个包的 APK 里的类，而本类只在 MainActivity 里被引用，且 Hook 侧代码不引用它）。
+ * 只有设置界面用它；SystemUI 进程完全不加载本类（本类只在 MainActivity 里被引用，Hook 侧不引用）。
  */
 object AppState {
 
@@ -33,13 +31,10 @@ object AppState {
     }
 
     /**
-     * 保存诗库。
+     * 保存诗库：诗库的唯一写入口，所有增删改排序都必须走这里。
      *
-     * <p><b>必须 copy()</b>：{@code config.value} 里放的是同一个对象实例，
-     * 如果原地改字段再赋回去，{@code mutableStateOf} 的默认策略是
-     * {@code structuralEqualityPolicy} —— 新旧值 {@code equals} 为真，
-     * <b>不会触发任何重组</b>。以前这里没有读 {@code config.poemsJson} 的地方，
-     * 所以症状是隐性的；一旦将来有页面读它，就会变成「改了不刷新」这种极难查的 bug。
+     * 必须 copy()：{@code config.value} 里放的是同一个对象实例，原地改字段再赋回去时
+     * {@code mutableStateOf} 的默认策略 {@code structuralEqualityPolicy} 认为新旧值相等，不会触发重组。
      */
     fun persistPoems(context: Context, list: List<PoemItem>) {
         val next = config.value.copy()

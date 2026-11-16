@@ -5,12 +5,7 @@ import java.util.Map;
 
 /**
  * 极简日志门面：只写 logcat，绝不落盘、绝不联网。
- *
- * <p><b>为什么这里要管「限频」</b>：这是一个 24 小时常驻 SystemUI 的模块。
- * 每首诗打 7 行，按 13 秒一首算就是 <b>每天 4.6 万行</b>写进 logd ——
- * 日志要落盘到环形缓冲区，那是实打实的唤醒与 IO。
- * 所以凡是「每首都会发生」的日志都必须经过 {@link #allow(String, long)} 限频，
- * 让 24 小时的日志量降到每天几千行。
+ * 本项目常驻 SystemUI 进程，凡是「每首都会发生」的日志都必须经过 {@link #allow} 限频，避免持续写 logd。
  */
 public final class Log {
 
@@ -54,14 +49,7 @@ public final class Log {
 
     /**
      * 限频闸门：同一个 key 每 {@code minIntervalMs} 毫秒最多放行一次。
-     *
-     * <p>刻意拆成「先问再拼字符串」两步：调用方写成
-     * <pre>
-     *   if (Log.allow("play", 30_000L)) {
-     *       Log.i("POEM play id=" + poem.id + " text=" + displayText);
-     *   }
-     * </pre>
-     * 被挡下时<b>连字符串都不会拼</b>，连 StringBuilder 都不分配。
+     * 刻意拆成「先问再拼字符串」两步，被挡下时连字符串都不会拼、不分配 StringBuilder。
      *
      * @return true 表示这次可以打
      */

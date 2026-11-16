@@ -41,9 +41,7 @@ import io.github.rude56.poemstatus.ui.components.SwitchRow
 import kotlinx.coroutines.launch
 
 /**
- * 设置页（一级页）。
- *
- * <p>分组顺序按「用户改动的可能性」排：播放 → 显示 → 暂停条件 → 高级 → 维护。
+ * 设置页（一级页）：分组顺序按「用户改动的可能性」排 —— 播放 → 显示 → 暂停条件 → 高级 → 维护。
  * 每一项都是「标题 + 一句人话解释」，不需要看文档。
  */
 @Composable
@@ -202,7 +200,7 @@ fun SettingsScreen(
             )
         }
 
-        // 底部一行小字：说明数据全部在本机。
+        // 底部一行小字：说明数据全部离线保存。
         Spacer(Modifier.height(24.dp))
         Text(
             stringResource(R.string.footer_offline),

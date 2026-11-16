@@ -8,32 +8,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 统一遮挡：<b>在状态栏内容根的画布上挖洞</b>，让诗句「穿」过去。
+ * 统一遮挡：在状态栏内容根的画布上挖洞，让诗句「穿」过去。
  *
- * <p>为什么不再逐个 View 改 alpha：本机状态栏是 Compose 绘制的，WiFi/电量/网速
- * 画在同一块画布上，单个图标既没有独立 View，改 alpha 还会被系统改回去
- * （表现为「闪一下就回来」），时分秒更是完全做不到逐位拆分。
+ * Hook {@code View.draw(Canvas)}，目标对象是内容根时在它绘制前用 {@link Canvas#clipOutRect}
+ * 挖洞。clip 属于画布状态，会随 {@code save/restore} 传给所有子孙，所以时钟、图标无论原生还是
+ * Compose 画的，一次裁剪全部穿透；逐个 View 改 alpha 做不到（Compose 把它们画在同一块画布上）。
  *
- * <p>本类的做法：Hook {@code View.draw(Canvas)}，当目标对象是<b>内容根</b>时，
- * 在它画之前用 {@link Canvas#clipOutRect} 把洞挖掉。clip 属于画布状态，
- * 会随 {@code save/restore} 传给所有子孙 —— 所以时钟、WiFi、电量、网速、
- * 通知图标，无论原生还是 Compose 画的，<b>一次裁剪全部穿透</b>。
- *
- * <p>省电：
- * <ul>
- *   <li>一次 draw 只多 N 对 save/clipOut/restore（N = 可见分段数，通常 1~2），无对象分配；</li>
- *   <li>没有诗句在显示时直接返回 false，零开销；</li>
- *   <li>只在诗句确实覆盖内容根时才节流重绘根视图，其余时间不产生任何重绘。</li>
- * </ul>
+ * 省电：一次 draw 只多 N 对 save/clipOut/restore（N = 可见分段数，通常 1~2），无对象分配；
+ * 没有诗句在显示时直接返回 false，零开销；只在诗句确实覆盖内容根时节流重绘根视图。
  */
 final class HolePuncher {
 
     /**
      * 重绘节流。
      *
-     * <p>洞的位置必须跟着诗句走，否则会「诗句过去了、图标还缺一块」。
-     * 30ms 约等于一个帧间隔，120px/s 下位移约 3.6px，远小于字形宽度，
-     * 肉眼看不出台阶，同时把根视图重绘压到最多 33 次/秒。
+     * 洞的位置必须跟着诗句走，否则会「诗句过去了、图标还缺一块」。30ms 约等于一个帧间隔，
+     * 120px/s 下位移约 3.6px，远小于字形宽度，肉眼看不出台阶，同时把根视图重绘压到最多 33 次/秒。
      */
     private static final long INVALIDATE_INTERVAL_MS = 30L;
 
@@ -49,25 +39,17 @@ final class HolePuncher {
     /**
      * 本帧要挖掉的若干矩形（屏幕坐标）。隧道洞内的段不在这里面 —— 那段不遮。
      *
-     * <p>容量要够 {@link HoleRects#visibleSegments} 输出的最大段数：
-     * 虫洞最多切出 {@code MAX_HOLES + 1} 段，每段再被隧道洞切开最多
-     * {@code MAX_HOLES + 1} 段，所以上界是 {@code (MAX_HOLES + 1)²}。
-     * 实际远超需要的量级不会出现（洞通常 1~2 个），这里取满以保证不丢段 ——
-     * 丢段就等于「字画出来了却没有遮挡」。
+     * 容量必须够 {@link HoleRects#visibleSegments} 输出的最大段数：虫洞最多切出
+     * {@code MAX_HOLES + 1} 段，每段再被隧道洞切开最多 {@code MAX_HOLES + 1} 段，
+     * 上界 {@code (MAX_HOLES + 1)²}。取满以保证不丢段 —— 丢段等于「字画出来了却没有遮挡」。
      */
     private static final int MAX_SEGMENTS = (HoleRects.MAX_HOLES + 1) * (HoleRects.MAX_HOLES + 1);
     private static final int[] segLeft = new int[MAX_SEGMENTS];
     private static final int[] segRight = new int[MAX_SEGMENTS];
     private static int segCount;
     private static boolean poemValid;
-    /**
-     * 画布裁剪的 save 栈。
-     *
-     * <p>以前是一个 {@code savedClips} 计数，且每次 {@code beginClip} 都先清零。
-     * {@code View.draw} 一旦被重入（带硬件层的子树、ROM 的预绘制），
-     * 内层就把外层的计数抹掉，导致外层 {@code endClip} 不再 restore ——
-     * 裁剪永久留在内容根上，图标缺一块且无任何日志。栈是唯一正确的结构。
-     */
+
+    /** 画布裁剪的 save 栈：{@code View.draw} 可能重入（硬件层子树、ROM 预绘制），单一计数会被内层抹掉。 */
     private static final ClipStack clips = new ClipStack();
     private static long lastInvalidateAt;
 
@@ -91,7 +73,7 @@ final class HolePuncher {
                 }
             }
         }
-        // 洞列表只在<b>确实正在挖洞</b>时才重绘：没在播放就没什么可恢复的。
+        // 洞列表只在确实正在挖洞时才重绘：没在播放就没什么可恢复的。
         if (root != null && poemValid) {
             root.invalidate();
         }
@@ -107,7 +89,7 @@ final class HolePuncher {
         return v == null ? "null" : v.getClass().getSimpleName();
     }
 
-    /** 每首诗开始时绑定「内容根」：它必须包含所有要穿透的内容，且<b>不含</b>诗句层。 */
+    /** 每首诗开始时绑定「内容根」：它必须包含所有要穿透的内容，且不含诗句层。 */
     static void bindRoot(View v) {
         root = v;
         refreshBounds();
@@ -116,9 +98,8 @@ final class HolePuncher {
     /**
      * 布局变化（旋转 / 状态栏尺寸改变）后重算根的屏幕矩形。
      *
-     * <p>必须是 public-package 可见：{@code SystemUiController.updateOrientation}
-     * 检测到方向变化时会调它。以前只在 {@code bindRoot} 里算一次，
-     * 关掉「横屏暂停」时旋转后的遮挡会整体用旧原点。
+     * 必须在 {@code bindRoot} 之外单独暴露：{@code SystemUiController.updateOrientation}
+     * 检测到方向变化时调它，否则旋转后的遮挡会整体用旧原点。
      */
     static void refreshBounds() {
         View v = root;
@@ -135,12 +116,10 @@ final class HolePuncher {
     }
 
     /**
-     * 设置这一帧要挖掉的若干矩形（屏幕坐标）。
+     * 设置这一帧要挖掉的若干矩形（屏幕坐标）。隧道洞内的段不在这里面 —— 那段不遮。
      *
-     * <p>为什么是「多段」：隧道里的字虽然看不见，但它所在的那段屏幕
-     * 也不该再遮挡状态栏内容。把可见部分切成多段后逐段挖，
-     * 洞内那段自然就被跳过了 —— 否则会出现「诗进了隧道看不见，
-     * 图标却还被挖掉一块」。
+     * 必须分段挖：隧道里的字看不见，它所在的那段屏幕也不该再遮挡状态栏内容，
+     * 否则会出现「诗进了隧道看不见，图标却还被挖掉一块」。
      *
      * @param lefts  每段左边界
      * @param rights 每段右边界
@@ -183,12 +162,9 @@ final class HolePuncher {
             return;
         }
         lastInvalidateAt = now;
-        // 重绘「新旧范围的并集」。
-        //
-        // <p>这里可以是<b>一次</b> invalidate 而不是每段一次：脏区只会取并集，
-        // 分多次调用的结果与一次相同，但每次调用都要走一遍
-        // ViewRootImpl 的脏区登记。诗句在往左走，所以旧范围的右边界一定
-        // 比新范围大 —— 漏掉它，那条带就会一直保留上一帧「挖掉」的样子。
+        // 重绘「新旧范围的并集」：脏区只取并集，一次 invalidate 与每段一次结果相同，
+        // 但分多次调用每次都要走一遍 ViewRootImpl 的脏区登记。诗句在往左走，
+        // 旧范围的右边界一定比新范围大 —— 漏掉它，那条带会一直保留上一帧「挖掉」的样子。
         int l = hadPrev ? Math.min(minL, prevL) : minL;
         int r = hadPrev ? Math.max(maxR, prevR) : maxR;
         invalidateBox(l, r);
@@ -201,10 +177,9 @@ final class HolePuncher {
     /**
      * 擦掉上一帧挖的洞。
      *
-     * <p>为什么必须有这一步：洞是「画布裁剪」，只在<b>重绘</b>时生效。
-     * 一旦某一帧变成「没有可见文字」（字整段落进隧道、或整句移出屏幕），
-     * 如果只是把 {@code segCount} 清零而不重绘，上一帧的裁剪不会被撤销，
-     * 屏幕上就留下一个<b>永久缺口</b> —— 图标缺一块，而且没人会去修它。
+     * 洞是「画布裁剪」，只在重绘时生效：若某一帧变成没有可见文字
+     * （字整段落进隧道、或整句移出屏幕）而只把 {@code segCount} 清零不重绘，
+     * 上一帧的裁剪不会被撤销，屏幕上会留下永久缺口。
      */
     private static void erasePrevious(boolean hadPrev, int l, int r) {
         if (root == null || !hadPrev) {
@@ -229,9 +204,8 @@ final class HolePuncher {
 
     /** 停止播放：清掉洞并重绘一次，让原生内容完整回来。 */
     static void clear() {
-        // 没有任何洞要清时不必重绘：restoreModules() 在暂停路径上会被反复调用，
-        // 而 root.invalidate() 是整条状态栏全量重绘。本来就没挖过洞，
-        // 重绘一次的结果和屏幕上完全一样，纯属浪费。
+        // 没有洞要清时不必重绘：restoreModules() 在暂停路径上会被反复调用，
+        // 而 root.invalidate() 是整条状态栏全量重绘，本来就没挖过洞时纯属浪费。
         boolean hadClip = poemValid || segCount > 0;
         poemValid = false;
         segCount = 0;
@@ -249,7 +223,7 @@ final class HolePuncher {
     }
 
     /**
-     * 在内容根 {@code draw(Canvas)} 之前调用：按「本帧有文字的段」逐段挖洞。
+     * 在内容根 {@code draw(Canvas)} 前调用：按「本帧有文字的段」逐段挖洞。
      *
      * @return true 表示已挖洞，调用方必须在绘制后 {@link #endClip} 还原
      */
@@ -262,11 +236,8 @@ final class HolePuncher {
         if (!poemValid || segCount <= 0) {
             return false;
         }
-        // 诊断：抓「虫洞正在传送」的那一帧（多段 = 有字被传送到洞口另一侧）。
-        //
-        // 只在 segCount == 1 时打印几乎没有价值：那是诗句刚进屏幕、
-        // 还没有任何字穿过虫洞的帧，遮挡与整条矩形完全一致。
-        // 真正的 bug 恰好只出现在「跨过洞口、分成两段」之后。
+        // 诊断：只抓「虫洞正在传送」的那一帧（多段 = 有字被传送到洞口另一侧）；
+        // segCount == 1 是诗句刚进屏幕、还没有字穿过虫洞的帧，遮挡与整条矩形一致。
         if (segCount > 1 && DebugFrames.pending()) {
             DebugFrames.consume();
             Log.i("POEM clip segs=" + segCount

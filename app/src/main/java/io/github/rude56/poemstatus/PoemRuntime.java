@@ -24,16 +24,8 @@ import java.util.Map;
 /**
  * SystemUI 内部的绘制与动画执行层。
  *
- * <p>省电要点：
- * <ul>
- *   <li>帧间隔按速度自适应（{@link #frameIntervalMs}）：位移不足 1px 时下次回调
- *       会自动拉长，20px/s 下主线程只醒 20 次/秒，600px/s 才到 30 次/秒；</li>
- *   <li>位置由 {@code frameTimeNanos} 直接算出，掉帧就跳到最新位置，不补帧；</li>
- *   <li>帧内零分配：Paint / FontMetrics / Rect / 数组全部复用，
- *       不建 StringBuilder、不打日志、不读磁盘、不扫 View 树；</li>
- *   <li>只 invalidate 文字新旧矩形的并集；</li>
- *   <li>时间阶段/暂停阶段：帧回调数为 0（{@code running=false} 且不 post）。</li>
- * </ul>
+ * 帧内硬约束：零分配、零日志、零 IO、零 View 树扫描；位置由 {@code frameTimeNanos}
+ * 直接算出，掉帧就跳到最新位置不补帧；只 invalidate 文字新旧矩形的并集。
  */
 final class PoemRuntime {
 
@@ -79,11 +71,9 @@ final class PoemRuntime {
     /**
      * 遮挡分段用的复用数组（帧内零分配）。
      *
-     * <p>容量必须覆盖 {@link HoleRects#visibleSegments} 的最坏输出：
+     * 容量必须覆盖 {@link HoleRects#visibleSegments} 的最坏输出：
      * 虫洞切出的每段都可能再被隧道洞切开，上界 {@code (MAX_HOLES + 1)²}。
-     * 以前是 {@code MAX_HOLES + 2}，虽然实际洞数少时够用，但一旦真出现多洞
-     * 就会<b>静默丢段</b> —— 丢了段就是「字画出来了却没有遮挡」，
-     * 而且没有任何日志。宁可多占几百字节。
+     * 取小了会静默丢段 —— 丢了段就是「字画出来了却没有遮挡」，而且没有任何日志。
      */
     private final float[] visSegLeft =
             new float[(HoleRects.MAX_HOLES + 1) * (HoleRects.MAX_HOLES + 1)];
@@ -101,7 +91,7 @@ final class PoemRuntime {
     void setStatusContainer(View v) {
         // 状态栏窗口被系统重建（换分辨率、SystemUI 重新 inflate）时，
         // 旧的诗句层挂在已经废弃的父容器上：必须摘掉，否则会跟着旧窗口一起泄漏。
-        // 这是 removeOverlay() 唯一还需要存在的理由 —— 正常换首<b>不</b>走这里。
+        // 这是 removeOverlay() 唯一还需要存在的理由 —— 正常换首不走这里。
         if (overlay != null && statusContainer != null && statusContainer != v) {
             removeOverlay();
         }
@@ -127,8 +117,7 @@ final class PoemRuntime {
     }
 
     /**
-     * 设置洞列表。模式是<b>每个洞各自携带</b>的（{@link HoleRects.Hole#mode}），
-     * 不存在全局模式，因此这里不再接收 mode 参数。
+     * 设置洞列表。模式是每个洞各自携带的（{@link HoleRects.Hole#mode}），不存在全局模式。
      */
     void setHoleConfig(List<HoleRects.Hole> holes) {
         configHoles.clear();
@@ -146,18 +135,12 @@ final class PoemRuntime {
     /**
      * 把当前洞列表推给诗句层。
      *
-     * <p><b>这一步以前只在「配置变化」时做，于是全新启动后永远漏一次</b>：
-     * 开机时 {@code refreshCutout()} 第一次运行的时刻，Overlay 还没被创建
-     * （第一首诗都还没开始），{@code overlay.setHoles()} 被直接跳过；
-     * 而 {@code refreshCutout()} 又按 {@code holesJson} 去重，内容不变就再也不会跑。
-     * 结果诗句层的洞列表<b>永远是空的</b>：整句连续绘制、不跳过虫洞；
-     * 而遮挡却按「虫洞切出来的段」去挖，洞那段既不画断又不挖洞 ——
-     * 表现就是「文字直接压在状态栏图标上」。
-     *
-     * <p>用户手动加一个洞会改变 {@code holesJson}，去重失效，一切立刻恢复正常 ——
-     * 这正是「要新添加一个洞才正常」的来源。
-     *
-     * <p>所以洞列表必须在<b>两个时机</b>都同步：配置变化时、Overlay 创建/重建时。
+     * 必须在两个时机都同步：配置变化时、Overlay 创建/重建时。
+     * 全新启动时 {@code refreshCutout()} 首次运行早于 Overlay 创建，那次
+     * {@code overlay.setHoles()} 会被跳过；而 {@code refreshCutout()} 又按
+     * {@code holesJson} 去重，内容不变就再也不会跑。漏掉的结果是诗句层的洞列表
+     * 永远为空：整句连续绘制、不跳过虫洞，而遮挡却按虫洞切出的段去挖 ——
+     * 文字直接压在状态栏图标上。
      */
     private void pushHolesToOverlay() {
         OverlayView o = overlay;
@@ -180,10 +163,8 @@ final class PoemRuntime {
     /**
      * 布局变化（旋转 / 状态栏尺寸改变）后刷新一次几何。
      *
-     * <p>以前只在 {@code start()} 里绑定内容根并算一次屏幕矩形，旋转后
-     * {@code HolePuncher} 用的还是旧的原点与宽高 —— 关掉「横屏暂停」时
-     * 表现为整个遮挡块偏移。这里在旋转时补一次，代价只有几次
-     * {@code getLocationOnScreen}，不在帧循环上。
+     * 旋转后 {@code HolePuncher} 用的原点与宽高会过期，整个遮挡块偏移。
+     * 这里补一次，代价只有几次 {@code getLocationOnScreen}，不在帧循环上。
      */
     void onLayoutChanged() {
         HolePuncher.refreshBounds();
@@ -238,37 +219,21 @@ final class PoemRuntime {
         // 内容根每首诗重取一次：SystemUI 会重建状态栏子视图，缓存旧引用会挖不到。
         HolePuncher.bindRoot(ViewTree.findContentRoot(statusContainer));
         HolePuncher.setHoles(configHoles);
-        // 这一行<b>不在这里打</b>：它和「POEM start」是同一时刻的两条，
-        // 合并到 SystemUiController.startCrawl 里输出一条即可。
-        // 原来每首 2 行 × 每天 6600 首 = 1.3 万行，纯属重复。
         overlay.postFrame();
         return true;
     }
 
     /**
-     * 遮挡策略：<b>只遮住文字真正显示出来的部分</b>。
+     * 遮挡策略：只遮住文字真正显示出来的部分，不能拿文字的整体包围盒去遮。
      *
-     * <p>关键点：不能拿文字的整体包围盒去遮。
-     * <ul>
-     *   <li><b>隧道</b>：字在洞内被遮住、屏幕上根本看不见，
-     *       那一段就<b>不该再遮挡状态栏</b>，否则会出现「诗已经进隧道看不见了，
-     *       图标却还被挖掉一块」。</li>
-     *   <li><b>虫洞</b>：字被瞬移到一侧，遮挡要跟着瞬移后的位置走。</li>
-     * </ul>
+     * 隧道：字在洞内被遮住、屏幕上根本看不见，那一段就不该再遮挡状态栏。
+     * 虫洞：字被瞬移到一侧，遮挡要跟着瞬移后的位置走。
      *
-     * <p><b>分段算法不在这里</b>：它整个搬到 {@link HoleRects#visibleSegments}
-     * 这个纯函数里，才能被单元测试逐帧验证。这里只负责「取原点 + 调一次 + 交出去」。
-     * 以前这段逻辑内联在帧回调里，出过一次很贵的 bug：可见性判据拿未位移的轨道
-     * 左端去比已位移的屏幕右端，跨过虫洞的那一段被整段丢弃 ——
-     * 文字传送到了洞口左边，遮挡却没跟过去（用户报的「文字到了，不会遮挡」）。
+     * 坐标系契约：{@code (l,t,r,b)} 是诗句层的本地坐标，
+     * 而 {@link HolePuncher} 只接受屏幕坐标（它自己减 {@code rootLeft}），
+     * 所以任何一条出口都必须先加上诗句层的屏幕原点。
      *
-     * <p><b>坐标系契约</b>：{@code (l,t,r,b)} 是诗句层的<b>本地</b>坐标，
-     * 而 {@link HolePuncher} 只接受<b>屏幕</b>坐标（它自己减 {@code rootLeft}）。
-     * 所以任何一条出口都必须先加上诗句层的屏幕原点 ——
-     * 以前「没有洞」的快路径直接丢本地坐标进去，只是因为状态栏原点恰好是 0
-     * 才没暴露；换个不从 0 开始的布局就会整体偏一个原点。
-     *
-     * <p>分段<b>不在这里重算</b>：{@link OverlayView#updateFrame} 已经算过一次，
+     * 分段不在这里重算：{@link OverlayView#updateFrame} 已经算过一次，
      * 绘制层直接复用同一份结果（每帧省掉一次完整的虫洞分段扫描）。
      */
     void updateOcclusion(float l, float t, float r, float b) {
@@ -292,18 +257,14 @@ final class PoemRuntime {
         }
         // 清掉画布上的「洞」，让原生内容完整重绘回来。
         HolePuncher.clear();
-        // 注意：这里刻意<b>不</b>移除 OverlayView。
+        // 注意：这里刻意不移除 OverlayView。
         //
-        // 以前每首结束都 removeView + 下一首 addView。这带来三笔真实开销：
-        //   ① 一次 add/removeView 会触发整棵状态栏的 requestLayout + 重新挂载，
-        //      比一次普通 invalidate 贵一个数量级；
-        //   ② 每次重新挂载都会重新走 onAttachedToWindow → refreshScreenOrigin
-        //      → listener.onOverlayAttached → colorSampler.startTracking，
-        //      于是取色推送被反复注册/注销；
-        //   ③ 每首诗都要重新 findContentRoot（递归扫整棵 View 树）。
-        // 诗句层本身是纯透明覆盖、不占触摸、不持有资源，留一个空 View 挂着
-        // 比反复增删便宜得多。真正的释放发生在 SystemUI 自己重建状态栏时
-        // （onDetachedFromWindow 会把 attached 复位）。
+        // add/removeView 会触发整棵状态栏的 requestLayout + 重新挂载，比一次普通
+        // invalidate 贵一个数量级，还会连带重跑 onAttachedToWindow → refreshScreenOrigin
+        // → colorSampler.startTracking（取色推送被反复注册/注销），以及重新
+        // findContentRoot（递归扫整棵 View 树）。诗句层是纯透明覆盖、不占触摸、
+        // 不持有资源，留一个空 View 挂着比反复增删便宜得多；真正的释放发生在
+        // SystemUI 自己重建状态栏时（onDetachedFromWindow 会把 attached 复位）。
         if (overlay != null) {
             overlay.running = false;
             // 必须把文字清掉：暂停时诗句很可能正停在状态栏中间，
@@ -328,12 +289,7 @@ final class PoemRuntime {
             overlay = null;
             return false;
         }
-        // 新建/重新挂载的诗句层是一片空白：洞列表必须在这里补一次。
-        //
-        // 全新启动时 refreshCutout() 首次运行早于 Overlay 创建，那次推送被跳过了；
-        // 之后又有 holesJson 去重挡着，配置不变就再也不会推 —— 结果诗句层
-        // 永远没有洞，既不跳过虫洞也不按虫洞切段（表现为文字压在图标上）。
-        // 详见 pushHolesToOverlay() 的注释。
+        // 新建/重新挂载的诗句层是一片空白：洞列表必须在这里补一次（详见 pushHolesToOverlay()）。
         pushHolesToOverlay();
         return true;
     }
@@ -341,7 +297,7 @@ final class PoemRuntime {
     /**
      * 把 OverlayView 挂到状态栏上。
      *
-     * <p>首选作为状态栏窗口的子 View —— 与状态栏同一 surface、同一坐标系；
+     * 首选作为状态栏窗口的子 View —— 与状态栏同一 surface、同一坐标系；
      * 失败时退回系统级 overlay（SystemUI 已持 SYSTEM_ALERT_WINDOW）。
      */
     private boolean attachOverlayView(OverlayView v) {
@@ -413,10 +369,8 @@ final class PoemRuntime {
     /**
      * 摘掉诗句层（只在状态栏窗口被系统重建时调用）。
      *
-     * <p><b>正常换首绝不走这里</b>：{@code addView/removeView} 会让整棵状态栏
-     * 重新 requestLayout + 重新挂载，比一次 invalidate 贵一个数量级，
-     * 而它以前是「每首诗一次」。诗句层是纯透明覆盖、不占触摸、不持资源，
-     * 挂着一个空 View 的成本远低于反复增删。
+     * 正常换首绝不走这里：{@code addView/removeView} 会让整棵状态栏
+     * 重新 requestLayout + 重新挂载，比一次 invalidate 贵一个数量级。
      */
     private void removeOverlay() {
         if (overlay == null) {
@@ -445,8 +399,7 @@ final class PoemRuntime {
     /**
      * 自定义 Overlay：只画一行文字。
      *
-     * <p>帧函数 {@link #doFrame(long)} 内不允许任何分配与采样 ——
-     * 单元测试会用源码审计强制这一点。
+     * 帧函数 {@link #doFrame(long)} 内不允许任何分配与采样（单元测试会强制这一点）。
      */
     final class OverlayView extends View implements Choreographer.FrameCallback {
 
@@ -488,9 +441,8 @@ final class PoemRuntime {
         /**
          * 诗句层在屏幕上的原点（缓存）。
          *
-         * <p>以前每帧都要 {@code getLocationOnScreen} 两次（遮挡一次、绘制一次），
-         * 而这个值只在布局/旋转时才会变。改成 {@link #refreshScreenOrigin()}
-         * 在挂载与布局变化时刷新一次，帧内只读字段。
+         * 只在布局/旋转时才会变，由 {@link #refreshScreenOrigin()} 在挂载与布局变化时
+         * 刷新一次，帧内只读字段 —— 帧内不能调 {@code getLocationOnScreen}。
          */
         int screenOriginX;
         int screenOriginY;
@@ -521,9 +473,8 @@ final class PoemRuntime {
         /**
          * 虫洞分段输出缓冲：洞数 + 1 段，帧内零分配。
          *
-         * <p>这三个数组由 {@link #updateFrame} 每帧计算一次，
-         * 然后被绘制层与遮挡层<b>共用</b>：以前两层各算一遍完全相同的分段，
-         * 等于每帧做两次全洞扫描。
+         * 这三个数组由 {@link #updateFrame} 每帧计算一次，然后被绘制层与遮挡层共用 ——
+         * 两层各算一遍等于每帧做两次全洞扫描。
          */
         final float[] segScreen = new float[HoleRects.MAX_HOLES + 1];
         final float[] segWidth = new float[HoleRects.MAX_HOLES + 1];
@@ -534,11 +485,11 @@ final class PoemRuntime {
         /**
          * 整句离屏时轨道左端的临界值（缓存，帧内只做一次比较）。
          *
-         * <p>见 {@link HoleRects#finishLeft}：虫洞把整句往左瞬移，所以
-         * 「轨道走完」比「屏幕上没字了」晚一个洞宽。以前直接用 {@code left + width < 0}，
-         * 结果是每次换首前都空等「洞宽 ÷ 速度」—— 当前配置下 3.5 秒、宽洞 5.8 秒。
+         * 见 {@link HoleRects#finishLeft}：虫洞把整句往左瞬移，所以「轨道走完」
+         * 比「屏幕上没字了」晚一个洞宽，用 {@code left + width < 0} 会每次换首前空等
+         * 「洞宽 ÷ 速度」。
          *
-         * <p>这个值只跟「文字宽度 + 洞宽」有关，两者都在 {@link #begin} 时就确定，
+         * 这个值只跟「文字宽度 + 洞宽」有关，两者都在 {@link #begin} 时就确定，
          * 所以在这里算一次即可，绝不进帧循环。
          */
         private float finishLeft;
@@ -546,8 +497,8 @@ final class PoemRuntime {
         /**
          * 开始一首诗。
          *
-         * @param holes 本首生效的洞列表。<b>必须显式传入</b>而不能读 {@link #holeList}：
-         *              洞是配置变化时才推送的，而 {@code begin} 在推送之前就跑了 ——
+         * @param holes 本首生效的洞列表。必须显式传入而不能读 {@link #holeList}：
+         *              洞是配置变化时才推送的，而 {@code begin} 在推送前就跑了，
          *              读字段会拿到上一首的洞，结束时机（{@link #finishLeft}）就按旧洞宽算。
          */
         void begin(String value, int speedPx, boolean bob, int w, int h, int color,
@@ -570,7 +521,7 @@ final class PoemRuntime {
             currentLeft = w;
             baseBaseline = (h - (fm.ascent + fm.descent)) / 2f;
             // 上下浮动：每首随机一个固定偏移（±1.5px），整首保持不变。
-            // 以前是逐帧正弦摆动，视觉上会「一首诗里高度一直变」，很晃眼。
+            // 不能逐帧摆动，否则一首诗里高度一直在变，很晃眼。
             bobOffsetPx = bob ? ((-1f + 2f * bobRandom.nextFloat()) * BOB_AMPLITUDE_PX) : 0f;
             baseline = baseBaseline + bobOffsetPx;
             currentTop = baseline + fm.ascent;
@@ -596,7 +547,7 @@ final class PoemRuntime {
         /**
          * 清空显示（停止播放时调用）。
          *
-         * <p>只把 {@code text} 置空并重绘那一带，不做整树 invalidate ——
+         * 只把 {@code text} 置空并重绘那一带，不做整树 invalidate ——
          * 暂停/切歌是每首都会发生的事，全量重绘整条状态栏纯属浪费。
          */
         void clearText() {
@@ -668,13 +619,11 @@ final class PoemRuntime {
             float traveled = speed * (elapsed / 1_000_000_000f);
             float left = viewW - traveled;
             float width = textWidth;
-            // 诗句位置<b>永远</b>由时间与速度直接算出，任何「洞」都不得改写它。
-            // 曾经在这里做空间压缩，结果是开头缺字、速度突变 —— 已彻底移除。
-            // 洞的效果只在绘制层体现：洞内不画字（见 drawTextWithHoles）。
+            // 诗句位置永远由时间与速度直接算出，任何「洞」都不得改写它 ——
+            // 在帧里改位置会导致开头缺字、速度突变。洞的效果只在绘制层体现（见 drawTextWithHoles）。
             //
             // 但「什么时候算结束」必须考虑虫洞：虫洞把整句往左瞬移一个洞宽，
-            // 屏幕上最后一个字早在一个洞宽之前就没了。用 `left + width < 0`
-            // 会让每次换首前空等「洞宽 ÷ 速度」——当前配置下是 3.5 秒。
+            // 屏幕上最后一个字早在一个洞宽时就没了，用 `left + width < 0` 会空等「洞宽 ÷ 速度」。
             boolean finished = left < finishLeft;
 
             // 位移不足 1 像素就不绘制：低速时自动降帧，肉眼无感，最省电。
@@ -701,7 +650,6 @@ final class PoemRuntime {
 
             frameCount++;
             // 本帧的虫洞分段只算一次：绘制层与遮挡回调共用同一份结果。
-            // 以前两层各调用一次 wormholeSegments，等于每帧做两次全洞扫描。
             if (wormholeSegmentsReady()) {
                 segCount = HoleRects.wormholeSegments(holeList, currentLeft, currentRight,
                         screenOriginX, segScreen, segText, segWidth, segScreen.length);
@@ -766,18 +714,14 @@ final class PoemRuntime {
         /**
          * 按「洞」处理诗句绘制。
          *
-         * <p>诗句位置<b>永远</b>由时间与速度算出，洞绝不参与 ——
-         * 所以不会出现开头缺字或速度突变（那两类 bug 都来自在帧里改位置）。
+         * 诗句位置永远由时间与速度算出，洞绝不参与，所以不会出现开头缺字或速度突变。
+         * 两种模式的差别只在绘制：
+         * 隧道（火车进隧道）—— 文字位置不动，落进洞里的那部分被遮住看不见，
+         * 所以洞宽内的字会「丢」，那正是被洞挡掉的效果。
+         * 虫洞（传送门）—— 字到洞口瞬移到另一侧，一个字都不丢；
+         * 实现上把洞那段屏幕抽掉（压缩轨道），跨过洞口时屏幕位置从洞右沿跳到洞左沿。
          *
-         * <p>两种模式的差别只在绘制：
-         * <ul>
-         *   <li><b>隧道</b>（火车进隧道）：文字位置不动，落进洞里的那部分<b>被遮住看不见</b>，
-         *       所以洞宽内的字会「丢」——那正是被洞挡掉的效果。</li>
-         *   <li><b>虫洞</b>（传送门）：字到洞口<b>瞬移</b>到另一侧，一个字都不丢。
-         *       实现上把洞那段屏幕抽掉（压缩轨道），跨过洞口时屏幕位置从洞右沿跳到洞左沿。</li>
-         * </ul>
-         *
-         * <p>两种模式都不碰状态栏原生内容；洞内不画字，所以自然露出下方的正常状态栏。
+         * 两种模式都不碰状态栏原生内容；洞内不画字，所以自然露出下方的正常状态栏。
          */
         private void drawTextWithHoles(Canvas canvas) {
             if (holeList.isEmpty()) {
@@ -785,8 +729,7 @@ final class PoemRuntime {
                 return;
             }
 
-            // save/restore 必须严格配对：早前「有虫洞无隧道」时漏了 restore，
-            // 导致画布状态泄漏（表现为错位与闪烁）。
+            // save/restore 必须严格配对，否则画布状态泄漏（表现为错位与闪烁）。
             final int saveCount = canvas.save();
 
             // ① 隧道：位置不动，洞内不画。

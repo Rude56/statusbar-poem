@@ -45,11 +45,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
- * 全应用共用的设置行组件。
- *
- * <p>统一在这里实现的好处：所有页面的行高、左右内边距、字号、点击涟漪都一致，
- * 不会出现「这页的开关比那页高 4dp」这种廉价感。Material 3 的规范是
- * 一行最小 56dp、左右 16dp、标题 bodyLarge、副标题 bodyMedium + onSurfaceVariant。
+ * 全应用共用的设置行组件：所有页面的行高、左右内边距、字号、点击涟漪都在这里统一。
+ * Material 3 规范：一行最小 56dp、左右 16dp、标题 bodyLarge、副标题 bodyMedium + onSurfaceVariant。
  */
 
 /** 分组小标题：小号、加粗、主题色，出现在卡片上方。 */
@@ -125,9 +122,7 @@ fun SwitchRow(
 
 /**
  * 一行「跳转」入口：图标 + 标题 + 副标题 + 右侧摘要值 + 箭头。
- *
- * <p>右侧摘要值（例如「3 个洞」「已选 2 个」）让用户不点进去也知道现状，
- * 这是 Material 设置页的标准做法。
+ * 右侧摘要值（例如「3 个洞」「已选 2 个」）让用户不点进去也知道现状。
  */
 @Composable
 fun NavRow(
@@ -182,14 +177,8 @@ fun NavRow(
 }
 
 /**
- * 带滑块的数值行。
- *
- * <p>拖动过程只更新本地状态，松手才落盘 —— 否则拖一次会写十几次 prefs，
- * 每次都通知 SystemUI 重读配置。
- *
- * <p>右侧数值是可点的：点开变成输入框，可以直接敲精确值。
- * 速度范围 20–600，滑块在 1440px 宽的屏幕上每像素对应 0.4，想停在 120
- * 靠拖是做不到的 —— 只给滑块等于逼用户接受一个随机值。
+ * 带滑块的数值行：拖动过程只更新本地状态，松手才落盘 —— 否则拖一次会写十几次 prefs。
+ * 右侧数值可点，点开变成输入框直接敲精确值：滑块在宽屏上无法精确停到某个整数，只给滑块等于逼用户接受随机值。
  */
 @Composable
 fun SliderRow(
@@ -207,7 +196,7 @@ fun SliderRow(
 
     fun commit(text: String) {
         val parsed = text.trim().toIntOrNull()
-        // 超出范围不报错，直接夹到最近的合法值 —— 输入「9999」得到 600，
+        // 超出范围不报错，直接夹到最近的合法值 —— 输入「9999」得到上限，
         // 比弹一句「数值无效」更符合直觉。
         val clamped = (parsed ?: value).coerceIn(range.first, range.last)
         local = clamped.toFloat()

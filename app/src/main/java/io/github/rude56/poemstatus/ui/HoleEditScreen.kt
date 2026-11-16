@@ -46,16 +46,10 @@ import io.github.rude56.poemstatus.R
 import io.github.rude56.poemstatus.ui.theme.holeColor
 
 /**
- * 洞的编辑页（二级页）—— 与「编辑诗句」保持同一套结构：
- * 全屏、避让键盘、底部「删除 / 取消 / 保存」。
- *
- * <p>为什么把编辑从列表里拆出来：列表卡片一多，每张卡都带两个输入框 + 一组分段按钮，
- * 页面会长得没法看。拆成「列表 → 点开 → 编辑 → 保存」后，
- * 列表只负责浏览和定位，编辑页只负责改一个洞，两边都清爽。
- *
- * <p><b>洞之间禁止重合</b>：保存前会检查是否和别的洞相交。重合会让绘制层的
- * 「虫洞分段」和「隧道挖空」互相抵消，表现为同一段有时看得见有时看不见，
- * 所以这里直接拦住并告诉用户撞到了哪个洞。
+ * 洞的编辑页（二级页）：全屏、避让键盘、底部「删除 / 取消 / 保存」，与「编辑诗句」结构一致。
+ * 编辑从列表拆出来：列表只负责浏览和定位，编辑页只负责改一个洞。
+ * 洞之间禁止重合：保存前检查是否和别的洞相交。重合会让绘制层的「虫洞分段」和「隧道挖空」互相抵消，
+ * 表现为同一段有时看得见有时看不见，所以直接拦住并告诉用户撞到了哪个洞。
  *
  * @param slot 要编辑的洞的颜色槽位（洞的稳定标识）
  * @param onDone 保存或取消后回到列表
@@ -73,9 +67,8 @@ fun HoleEditScreen(
     // 洞可能在别处被删掉（例如返回时数据已变），此时直接退回列表。
     //
     // 必须在 LaunchedEffect 里退，不能在组合期间直接调 onDone()：
-    // 那会在 composition 过程中修改导航栈（写 mutableStateListOf），
-    // 属于 Compose 明确禁止的行为 —— 轻则重组顺序错乱，重则抛
-    // "Reading a state that was created after the snapshot"。
+    // 那会在 composition 过程中修改导航栈（写 mutableStateListOf），属于 Compose 明确禁止的行为 ——
+    // 轻则重组顺序错乱，重则抛 "Reading a state that was created after the snapshot"。
     if (initial == null) {
         LaunchedEffect(slot) { onDone() }
         return

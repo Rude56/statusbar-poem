@@ -12,7 +12,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * 诗库纯文本（{@code 诗句|作者|出处}）编解码测试。
  *
- * <p>重点在「宽容解析」与「往返无损」：用户会从备忘录、聊天窗口、
+ * 重点在「宽容解析」与「往返无损」：用户会从备忘录、聊天窗口、
  * 各种编辑器里粘贴文本，格式难免有点脏，不能因为一个全角竖线就整份导入失败。
  */
 public class PoemTextCodecTest {

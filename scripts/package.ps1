@@ -1,33 +1,42 @@
-# 打包交付物到 dist/：APK（release + debug）+ 源码 zip + SHA256SUMS.txt
+# 打包交付物到 dist/：release APK + debug APK + 源码 zip + SHA256SUMS.txt
 #
-# release：R8 裁剪过，约 2 MB，日常使用装这个。
-# debug  ：不裁剪，约 23 MB，只在需要完整堆栈/热修时用。
-# 两者同一个签名，可互相覆盖安装。
+# release 需要 keystore.properties（见 keystore.properties.example）；
+# 没有该文件时会用默认 debug 签名，仍可构建但不适合发布。
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $dist = Join-Path $root 'dist'
 $version = 'v1.0.0'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 
+$gradlew = Join-Path $root 'gradlew.bat'
+if (-not (Test-Path $gradlew)) { throw "缺少 gradlew.bat" }
+
+Push-Location $root
+try {
+    & $gradlew :app:assembleRelease :app:assembleDebug --no-daemon
+    if ($LASTEXITCODE -ne 0) { throw "gradle assemble failed" }
+} finally {
+    Pop-Location
+}
+
 $apks = @()
 foreach ($pair in @(@('release', 'app\build\outputs\apk\release\app-release.apk'),
                     @('debug', 'app\build\outputs\apk\debug\app-debug.apk'))) {
     $src = Join-Path $root $pair[1]
-    if (-not (Test-Path $src)) {
-        throw "APK not found: $src (run scripts\build.ps1 / assembleRelease first)"
-    }
+    if (-not (Test-Path $src)) { throw "APK not found: $src" }
     $dst = Join-Path $dist ("statusbar-poem-$version-" + $pair[0] + ".apk")
     Copy-Item $src $dst -Force
     $apks += $dst
 }
 
-# 源码包：排除构建产物与工具链
+# 源码包：排除构建产物与本地配置
 $srcZip = Join-Path $dist "statusbar-poem-$version-src.zip"
 if (Test-Path $srcZip) { Remove-Item $srcZip -Force }
 
 $staging = Join-Path $env:TEMP "poem-src-$([guid]::NewGuid().ToString('N').Substring(0,8))"
 New-Item -ItemType Directory -Force -Path $staging | Out-Null
-$exclude = @('.git', '.gradle', '.toolchain', 'build', 'dist', '.idea', 'local.properties')
+$exclude = @('.git', '.gradle', '.toolchain', 'build', 'dist', '.idea',
+             'local.properties', 'keystore.properties')
 
 function Copy-Tree([string]$from, [string]$to) {
     New-Item -ItemType Directory -Force -Path $to | Out-Null

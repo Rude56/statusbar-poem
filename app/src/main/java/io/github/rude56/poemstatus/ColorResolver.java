@@ -3,21 +3,8 @@ package io.github.rude56.poemstatus;
 import java.util.Locale;
 
 /**
- * 诗句文字颜色的决策逻辑（纯逻辑，不触碰 Android API）。
- *
- * <p><b>颜色完全来自系统已经算好的结果</b>，我们自己不猜、不做亮度推断：
- * <ol>
- *   <li>{@link Source#TINT} 系统给状态栏图标/文字算好的前景色
- *       （{@code DarkIconDispatcherImpl.mIconTint}）—— 最准，深浅色应用自动跟随；</li>
- *   <li>{@link Source#CLOCK} 原生时钟当前的文字色（ROM 保留 TextView 时钟时）；</li>
- *   <li>{@link Source#APPEARANCE} 系统状态栏外观位
- *       （{@code APPEARANCE_LIGHT_STATUS_BARS}）—— 浅色背景配深字；</li>
- *   <li>{@link Source#MODULE_TEXT} 状态栏里任一可见文字控件的当前文字色；</li>
- *   <li>{@link Source#DEFAULT} 以上都拿不到时的兜底浅色。</li>
- * </ol>
- *
- * <p>采样只允许发生在低频路径（每首开始时 / 爬行期间每 300ms），
- * 绝不允许出现在逐帧动画函数里 —— 帧循环只使用这里缓存下来的颜色。
+ * 诗句文字颜色的决策逻辑（纯逻辑，不触碰 Android API）：颜色完全来自系统已算好的结果，不做亮度推断。
+ * 优先级 TINT（{@code DarkIconDispatcherImpl.mIconTint}）→ CLOCK → APPEARANCE → MODULE_TEXT → DEFAULT；只在低频路径采样。
  */
 public final class ColorResolver {
 

@@ -4,40 +4,22 @@ import android.view.View;
 import android.widget.TextView;
 
 /**
- * 诗句文字取色：<b>直接读取状态栏前景色</b>。
- *
- * <ol>
- *   <li>系统给状态栏图标/文字算好的 tint（{@link TintState}，来自
- *       {@code DarkIconDispatcherImpl.mIconTint}）；</li>
- *   <li>原生时钟 {@code getCurrentTextColor()}；</li>
- *   <li>系统状态栏外观位 {@code APPEARANCE_LIGHT_STATUS_BARS}；</li>
- *   <li>状态栏里任一可见 TextView 的文字色。</li>
- * </ol>
- *
- * <p><b>省电要点</b>：以前这里是个 300ms 的定时器，播放期间每秒醒 3.3 次去
- * 「问一句颜色变了没」。现在改成<b>推送</b> —— {@link TintState} 在系统真正
- * 改变状态栏外观时会回调 {@link #onSystemTintChanged()}，我们只在那一刻重算一次。
- * 于是爬行阶段（本来就有帧回调）不再额外引入任何定时器。
- *
- * <p>唯一的例外是「Hook 没装上」：那时 {@link TintState} 永远不会被填，
- * 推送也就永远不会来。这种情况退化为 2 秒一次的低频兜底轮询
- * （见 {@link #SAMPLE_INTERVAL_MS}），且只在播放期间运行。
- *
- * <p>取色绝不出现在逐帧动画函数里 —— 帧循环只使用这里缓存下来的颜色。
+ * 诗句文字取色：直接读系统已算好的状态栏前景色，不做亮度推断。优先级 tint（{@link TintState}）
+ * → 原生时钟文字色 → 外观位 → 任一可见 TextView 文字色；取色绝不出现在逐帧动画函数里。
  */
 final class ColorSampler {
 
     /**
      * 兜底轮询间隔：仅用于 {@link TintState} 拿不到任何数据的降级路径。
      *
-     * <p>正常情况下这个定时器根本不会启动。
+     * 正常情况下这个定时器根本不会启动。
      */
     private static final long SAMPLE_INTERVAL_MS = 2000L;
 
     /**
      * 推送合流窗口。
      *
-     * <p>系统图标色切换是带动画的，{@code applyIconTint} 在动画期间每帧都会调一次。
+     * 系统图标色切换是带动画的，{@code applyIconTint} 在动画期间每帧都会调一次。
      * 250ms 足够覆盖整段动画，又明显短于人眼能察觉的延迟。
      */
     private static final long COALESCE_MS = 250L;
@@ -45,9 +27,7 @@ final class ColorSampler {
     /**
      * 取色诊断日志的最短间隔。
      *
-     * <p>以前是 10 秒。但 {@link #sample} 每首诗开始时都会跑一次，
-     * 而一首诗大约 13 秒 —— 10 秒的间隔等于「几乎每首打一行」，
-     * 24 小时下来 6000+ 行。取色是稳定状态，5 分钟一行足够定位问题。
+     * 取色是稳定状态，5 分钟一行足够定位问题，又不至于把 logd 写满。
      */
     private static final long DIAG_LOG_MS = 300_000L;
 
@@ -106,11 +86,8 @@ final class ColorSampler {
     /**
      * 系统状态栏外观变了（由 {@link TintState} 推送）。
      *
-     * <p><b>必须合流</b>：系统的图标色是带动画的，{@code applyIconTint} 在动画
-     * 期间会<b>每帧</b>调一次（实测一次切换能连发几十条），如果每次推送都立刻
-     * 重采样，就等于把原来的 300ms 轮询换成了 60 次/秒的轮询 —— 比原来更费电。
-     * 所以这里只置一个「待采样」标记，250ms 之后统一取一次最终颜色。
-     * 动画结束后的那次采样拿到的就是稳定值。
+     * 必须合流：图标色切换带动画，{@code applyIconTint} 在动画期间每帧调一次，
+     * 逐条重采样等于把轮询提到 60 次/秒。所以只置「待采样」标记，250ms 后统一取稳定值。
      */
     void onSystemTintChanged() {
         if (pendingSample) {
@@ -146,7 +123,7 @@ final class ColorSampler {
     /**
      * 系统算好的「状态栏该用深字还是浅字」。
      *
-     * <p>优先用 Hook 抄下来的结果（{@link TintState}），它由系统在自己的
+     * 优先用 Hook 抄下来的结果（{@link TintState}），它由系统在自己的
      * {@code LightBarControllerImpl} 里算出，切换应用就会更新；
      * 拿不到才退回当前窗口的 {@code getSystemBarsAppearance()}。
      */
@@ -175,12 +152,7 @@ final class ColorSampler {
     }
 
     /**
-     * 原生时钟文字色（低频调用）。
-     *
-     * <p>结果缓存：{@code findClock()} 是整棵状态栏树的递归 DFS，
-     * 而采样是周期性动作 —— 每次都扫全树纯属浪费。
-     * 时钟 View 在 SystemUI 生命周期里基本不变，用弱引用缓存即可；
-     * 真的被回收了（重新 inflate）下次自然会重新找。
+     * 原生时钟文字色。弱引用缓存：{@code findClock()} 是整棵树的递归 DFS，而采样是周期性动作。
      */
     private int readClockColor(View contentRoot) {
         try {
@@ -223,11 +195,8 @@ final class ColorSampler {
     }
 
     /**
-     * 开始跟踪颜色变化。
-     *
-     * <p>正常路径：注册 {@link TintState} 推送，<b>不启动任何定时器</b>。
-     * 只有推送源完全不可用（Hook 没装上、两个外观来源都是 null）时，
-     * 才启动 2 秒一次的低频兜底。
+     * 开始跟踪颜色变化。正常路径只注册 {@link TintState} 推送、不启动定时器；
+     * 推送源完全不可用（Hook 没装上）才启动 2 秒一次的兜底轮询。
      */
     void startTracking(Runnable changed) {
         onChange = changed;

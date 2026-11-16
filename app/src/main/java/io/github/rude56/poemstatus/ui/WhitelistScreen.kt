@@ -53,13 +53,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 白名单（二级页）：这些应用在前台时暂停滚动。
- *
- * <p>交互：
- * <ul>
- *   <li>顶部搜索框即时过滤；</li>
- *   <li>已选应用固定在列表最上方，方便取消；</li>
- *   <li>点整行即勾选，不必精确点中复选框。</li>
- * </ul>
+ * 顶部搜索框即时过滤；已选应用固定在列表最上方；点整行即勾选，不必精确点中复选框。
  */
 @Composable
 fun WhitelistScreen(context: Context) {

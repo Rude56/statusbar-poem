@@ -50,11 +50,7 @@ import io.github.rude56.poemstatus.ui.components.SettingsCard
 import kotlinx.coroutines.delay
 
 /**
- * 概览页（一级页，打开应用看到的第一屏）。
- *
- * <p>只做一件事：<b>让用户看清现在开没开、开不了是缺什么</b>。
- * 效果预览与快捷入口都去掉了 —— 预览在「洞」页里已经有一份更贴近真实的，
- * 快捷入口在底部导航里本来就能一步点到，重复放只是占地方。
+ * 概览页（一级页，打开应用看到的第一屏）：让用户看清现在开没开、开不了是缺什么。
  */
 @Composable
 fun OverviewScreen(context: Context) {
@@ -62,12 +58,10 @@ fun OverviewScreen(context: Context) {
     val poems = AppState.poems.value
     val enabledPoems = poems.count { it.enabled }
 
-    // LSPosed 连接状态：SystemUI 每 2 秒会来读一次配置，
-    // 所以这里也按 2 秒刷新一次即可，慢了会显得迟钝，快了没有意义。
+    // LSPosed 连接状态：SystemUI 每 2 秒来读一次配置，这里也按 2 秒刷新即可。
     //
-    // 必须绑到 STARTED 生命周期：`LaunchedEffect { while(true) }` 只在
-    // 组合销毁时才停，而 Activity 退到后台时组合还活着 —— 会变成
-    // 「在后台每 2 秒醒一次、写 state、触发一次不可见的重组」。
+    // 必须绑到 STARTED 生命周期：`LaunchedEffect { while(true) }` 只在组合销毁时才停，
+    // 而 Activity 退到后台时组合还活着 —— 会变成「在后台每 2 秒醒一次、写 state、触发不可见的重组」。
     var secondsAgo by remember { mutableLongStateOf(-1L) }
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
@@ -157,9 +151,7 @@ fun OverviewScreen(context: Context) {
 
 /**
  * 顶部大卡片：一眼看到「开没开」，整张卡都能点。
- *
- * <p>排版要点：开关放在标题行右侧、说明文字单独占满整行 ——
- * 这样无论状态文案多长都不会被开关挤成难看的两行。
+ * 开关放在标题行右侧、说明文字单独占满整行 —— 状态文案再长也不会被开关挤成两行。
  */
 @Composable
 private fun MasterCard(enabled: Boolean, subtitle: String, onToggle: (Boolean) -> Unit) {
@@ -211,7 +203,7 @@ private fun MasterCard(enabled: Boolean, subtitle: String, onToggle: (Boolean) -
                 Switch(checked = enabled, onCheckedChange = onToggle)
             }
             Spacer(Modifier.height(6.dp))
-            // 说明单独一行，不再被开关挤压
+            // 说明单独一行，不被开关挤压
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodyMedium,

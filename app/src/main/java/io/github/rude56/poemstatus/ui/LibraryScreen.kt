@@ -75,18 +75,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 古诗库（一级页）。
- *
- * <p>交互约定（尽量贴近系统「联系人」「备忘录」这类列表页）：
- * <ul>
- *   <li><b>点一下</b> = 打开编辑页；</li>
- *   <li><b>长按拖动</b> = 排序（拖动时行浮起、有阴影）；</li>
- *   <li><b>左右滑动</b> = 删除，带二次确认；</li>
- *   <li><b>右侧开关</b> = 是否参与播放，不用进详情页；</li>
- *   <li>右下角 <b>FAB</b> = 新增；顶部「导入 / 导出」= 批量编辑。</li>
- * </ul>
- *
- * <p>排序只在松手时落盘一次：拖动过程中每跨一格就写一次 prefs 会频繁唤醒 SystemUI。
+ * 古诗库（一级页）：点击进入编辑、长按拖动排序、左右滑动删除（二次确认）、右侧开关控制是否播放。
+ * 排序只在松手时落盘一次 —— 拖动中每跨一格就写 prefs 会频繁唤醒 SystemUI。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,8 +98,8 @@ fun LibraryScreen(
 
     val exportedText = remember(poems) { PoemTextCodec.encode(poems) }
 
-    // 导出用 SAF 的「创建文档」。早期版本靠 Activity 回调 + 静态槽位接 Uri，
-    // 现在换成 Activity Result API：契约挂在 Activity 上，页面被回收也不会丢结果。
+    // 导出用 SAF 的「创建文档」，走 Activity Result API：
+    // 契约挂在 Activity 上，页面被回收也不会丢结果。
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
@@ -131,8 +121,8 @@ fun LibraryScreen(
     val working = remember(poems) { mutableStateOf(poems) }
     val shown = if (draggingId != null) working.value else poems
 
-    // 行高必须实测：以前写死 108px，在 640dpi（density 4.0）下只有 27dp，
-    // 而真实卡片约 67dp ≈ 268px —— 拖 1/4 行就换位，列表会「抢跑」。
+    // 行高必须由 onGloballyPositioned 量出来，不能写死像素：不同 dpi 下同一 dp 值对应的像素数差很大，
+    // 拖不到半行就会换位，列表会「抢跑」。
     var rowHeightPx by remember { mutableStateOf(0f) }
 
     val filtered = remember(shown, query) {
@@ -145,19 +135,15 @@ fun LibraryScreen(
     }
 
     // 序号必须取「整张列表里的位置」，而不是过滤后的位置 ——
-    // 搜索时若从 1 重新编号，第 47 首会显示成「1」，用户会以为顺序变了。
+    // 搜索时若从 1 重新编号，后面的诗会显示成「1」，用户会以为顺序变了。
     val indexById = remember(shown) {
         HashMap<String, Int>(shown.size * 2).apply {
             shown.forEachIndexed { i, p -> put(p.id, i) }
         }
     }
 
-    // 拖动时的换位对象限定在「当前可见的诗」之间。
-    //
-    // 修的是一个会写坏数据的 bug：以前拖动时显示的是过滤后的列表，
-    // 换位却按整张列表的下标算 —— 搜索状态下长按拖动，屏幕上一动不动，
-    // 实际却在和看不见的诗悄悄换位，松手后顺序已经变了。
-    // 现在只在可见的诗之间换位，被过滤掉的诗相对顺序保持不变（整体平移一格）。
+    // 拖动换位只在「当前可见的诗」之间进行，且是 swap 语义：被搜索过滤掉的诗原地不动、顺序不变。
+    // 若按整表下标换位，屏幕上一动不动，实际却在和看不见的诗换位，松手后顺序已乱。
     val visibleIds = remember(filtered) { filtered.mapTo(HashSet(filtered.size * 2)) { it.id } }
 
     if (poems.isEmpty()) {
@@ -334,7 +320,7 @@ fun LibraryScreen(
                         },
                         onDrag = { dy ->
                             dragOffset += dy
-                            // 行高没量到时用一个保守值，绝不退回到写死的像素数。
+                            // 行高没量到时用一个保守值，不能用写死的像素数。
                             val step = if (rowHeightPx > 0f) rowHeightPx else 1f
                             while (dragOffset > step / 2f) {
                                 val next = moveAmongVisible(working.value, poem.id, visibleIds, 1)
@@ -476,11 +462,8 @@ fun LibraryScreen(
 }
 
 /**
- * 从 SAF 选好的文档里读出文本。
- *
- * <p>不用任何存储权限：系统选择器把 Uri 交给我们，`contentResolver` 直接读。
- * 读失败（文件被删、权限被回收、编码异常）统一返回 null，由调用方提示，
- * 绝不让异常冒到 Compose 的协程里把页面打崩。
+ * 从 SAF 选好的文档里读出文本：不需要任何存储权限，`contentResolver` 直接读。
+ * 读失败（文件被删、权限被回收、编码异常）统一返回 null，由调用方提示，不让异常冒到 Compose 协程里。
  */
 private fun readTextFrom(context: Context, uri: android.net.Uri): String? = try {
     context.contentResolver.openInputStream(uri)?.use { input ->
@@ -615,7 +598,7 @@ private fun PoemCard(
         modifier = Modifier
             .fillMaxWidth()
             .onGloballyPositioned { coords ->
-                // 实测行高（含间距由外层 spacedBy 提供，这里只要卡片自身高度）。
+                // 行高（含间距由外层 spacedBy 提供，这里只要卡片自身高度）。
                 onMeasured(coords.size.height.toFloat())
             }
             .graphicsLayer {
@@ -712,15 +695,14 @@ private fun PoemCard(
     }
 }
 
-/** 行高由 {@code onGloballyPositioned} 实测，不再写死像素值。 */
+/** 行高由 {@code onGloballyPositioned} 量出，不能写死像素值。 */
 
 /**
  * 在「可见的诗」之间移动一格，返回新的列表；移不动时原样返回。
  *
- * <p>真正的算法在 {@link PoemLibrary.moveAmongVisible}（可单测）：
- * 搜索过滤后按整表下标换位会把看不见的诗卷进来，用户毫无察觉但顺序已乱。
- *
- * <p>无路可走时<b>原样返回同一个对象</b>（`===` 可比），调用方据此退出循环。
+ * 算法在 {@link PoemLibrary.moveAmongVisible}（可单测），swap 语义：被搜索过滤掉的诗原地不动，
+ * 顺序不变；按整表下标换位则会把看不见的诗卷进来，用户毫无察觉但顺序已乱。
+ * 无路可走时返回同一个对象（`===` 可比），调用方据此退出循环。
  *
  * @param step -1 上移一格，+1 下移一格
  */

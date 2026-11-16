@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      刻意不申请 INTERNET：本模块全程离线，SystemUI 侧也不许联网。
+      不申请 INTERNET：模块全程离线。
       白名单需要列出已安装应用，因此声明 QUERY_ALL_PACKAGES（仅本应用进程使用）。
     -->
     <uses-permission
@@ -47,12 +47,11 @@
             android:exported="true" />
 
         <!--
-          模块声明全部放在 src/main/resources/META-INF/xposed/ 下，不再用 meta-data：
+          模块声明在 src/main/resources/META-INF/xposed/ 下：
             java_init.list —— 入口类
             module.prop    —— minApiVersion / targetApiVersion / staticScope=true
             scope.list     —— com.android.systemui
-          静态作用域（staticScope）只有现代模块能声明；旧的 xposedscope meta-data
-          只是「建议列表」，用户可以把模块勾到任意应用上。
+          静态作用域（staticScope）只有现代 libxposed 模块能声明。
         -->
     </application>
 

@@ -39,19 +39,9 @@ import io.github.rude56.poemstatus.PreviewClock
 import io.github.rude56.poemstatus.R
 
 /**
- * 洞的两种穿越方式 —— 两个固定样例。
- *
- * <p>为什么固定而不跟随用户配置：这两种模式的差别只发生在「一个字跨过洞口的一瞬」，
- * 用户配的洞可能只有 30px 宽、或者压根没配，那样根本看不清区别。
- * 所以这里用两个写死的、位置相同的洞，各演示一种模式，让用户先看懂「隧道」和「虫洞」
- * 分别是什么，再决定自己要用哪个。
- *
- * <p>配色：<b>白底黑字</b>。不跟随深色主题 —— 状态栏在浅色壁纸下就是白底黑字，
- * 这样样例看起来才像真的状态栏，而不是一块黑色演示条。
- *
- * <p><b>两行必须严格同步</b>，否则对比没有意义。全部时间与位置都来自
- * {@link PreviewClock}：同一个进度、同一条轨道、同一个洞矩形。
- * 任何一行自己算时间或自己取整，都会让两块画面对不上，而且不会报错。
+ * 洞的两种穿越方式样例：两个写死的同位置洞，各演示一种模式，不跟随用户配置。
+ * 两行必须严格同步：时间与位置全部来自 [PreviewClock]，任何一行自己算时间或取整都会让画面对不上且不报错。
+ * 白底黑字固定配色，不随主题变 —— 状态栏在浅色壁纸下就是白底黑字。
  */
 @Composable
 fun HoleModeSamples(modifier: Modifier = Modifier) {
@@ -61,13 +51,12 @@ fun HoleModeSamples(modifier: Modifier = Modifier) {
     val fg = Color(0xFF1A1C1E)
 
     val density = LocalDensity.current
-    // 两行必须用<b>同一支画笔</b>测量文字宽度，否则文字宽度可能差一点点，
-    // 两行的消失点就不一致了。
+    // 两行必须共用同一支画笔测宽，否则文字宽度有细微差异、两行消失点不一致。
     val paint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-            // 必须用 sp，不能用 dp：运行时画笔是 13 * scaledDensity（即 13sp）。
-            // 用 dp 时，只要系统字体缩放 ≠ 1，预览就比真实偏小 —— 所见非所得。
+            // 必须用 sp 不能用 dp：运行时画笔是 13 * scaledDensity（即 13sp），
+            // 用 dp 时系统字体缩放 ≠ 1 预览就比真实偏小。
             textSize = with(density) { 13.sp.toPx() }
         }
     }
@@ -78,10 +67,7 @@ fun HoleModeSamples(modifier: Modifier = Modifier) {
     // 洞宽（像素）：由画布宽度按 30%–62% 算出。
     val wormholeWidth = canvasWidth * (HOLE_RIGHT_FRAC - HOLE_LEFT_FRAC)
 
-    // 一轮循环的终点：必须在<b>两行都还有字</b>的范围内。
-    //
-    // 以前进度按整条轨道 [0,1] 循环，而虫洞行会提前 19% 就走空 ——
-    // 每轮有 2.7 秒只有隧道行还在滚，两行对不上。见 PreviewClock.cycleEnd。
+    // 一轮循环的终点：必须在两行都还有字的范围内，见 PreviewClock.cycleEnd。
     val cycleEnd = if (canvasWidth > 0f) {
         PreviewClock.cycleEnd(canvasWidth, textWidth, wormholeWidth)
     } else {
@@ -89,16 +75,10 @@ fun HoleModeSamples(modifier: Modifier = Modifier) {
     }
 
     // 两行共用的进度。用 PreviewClock 按周期取模，永续循环。
-    //
-    // 以前进度被夹取到 1 且起点从不重置：跑到 14 秒后永久停在末尾，
-    // 两行都是空的，再也没法对比。
     var progress by remember { mutableFloatStateOf(0.40f) }
     LaunchedEffect(cycleEnd) {
-        // 按「时间」推进，且节流到约 30fps。
-        //
-        // 旧实现是「每个 vsync 加一个固定小量」：120Hz 屏上每秒写 120 次 state、
-        // 两块 Canvas 各重绘一次；而且那个固定增量是按 120Hz 推算的「一轮 14 秒」，
-        // 在 60Hz 设备上会变成 28 秒 —— 速度跟着刷新率变，这本身也不对。
+        // 用 withFrameNanos 按时间推进并节流到约 30fps，不能按帧数累加：
+        // 每帧加固定增量会让速度跟着屏幕刷新率变（120Hz 与 60Hz 的周期不同）。
         var lastDraw = 0L
         var start = 0L
         while (true) {
@@ -194,16 +174,8 @@ private fun SampleRow(
 }
 
 /**
- * 样例画布。
- *
- * <p>洞的位置按预览宽度的比例写死（左 30%、右 62%），比原来更宽：
- * 洞太窄时「字被吞掉」和「字被挡住」看起来几乎一样，加宽才能看出差别。
- *
- * <p><b>两行的洞矩形必须逐像素相同</b>。以前隧道分支直接用 float 边界，
- * 虫洞分支却把它们 {@code toInt()} 之后再交给分段算法 ——
- * 两条边界各差最多 1px，于是「洞的左沿」在两行里不在同一列，
- * 对比时看到的差异有一部分其实是这个取整误差。
- * 现在两边都用同一对边界。
+ * 样例画布：洞的位置按预览宽度比例固定（左 30%、右 62%），纵向满高。
+ * 两行的洞矩形必须逐像素相同，两侧都用同一对 float 边界，不能各自取整。
  */
 @Composable
 private fun SampleCanvas(
@@ -218,7 +190,6 @@ private fun SampleCanvas(
     paint.color = fg.toArgb()
 
     // 帧内零分配：洞对象与三个输出数组都提到 remember 里复用。
-    // 以前每次重组都 listOf(hole) + FloatArray(2) × 3。
     val hole = remember {
         HoleRects.Hole(0, 0, HoleRects.Mode.WORMHOLE)
     }
@@ -232,15 +203,14 @@ private fun SampleCanvas(
         val h = size.height
         // 报告宽度：两行取最小值，保证共用同一个坐标系。
         onWidth(w)
-        // 文字宽度用<b>共用画笔</b>测量，与时钟算 cycleEnd 时是同一个值。
+        // 文字宽度用共用画笔测量，与时钟算 cycleEnd 时是同一个值。
         val textW = paint.measureText(text)
         // 轨道位置与运行时同一个公式（PreviewClock.trackLeft）。
         val left = PreviewClock.trackLeft(w, textW, progress)
         val right = left + textW
 
-        // 固定洞：横向 30%–62%（更宽，便于看出吞字/遮挡的差别），纵向满高。
-        // 两行用<b>同一对</b>边界，且不在这里取整（虫洞分支内部需要的整数
-        // 由分段算法自己处理，不能让它反过来影响隧道的裁剪边界）。
+        // 固定洞：横向 30%–62%，纵向满高。两行用同一对边界，且不在这里取整
+        // （虫洞分支需要的整数由分段算法自己处理，不能反过来影响隧道的裁剪边界）。
         val holeLeft = w * HOLE_LEFT_FRAC
         val holeRight = w * HOLE_RIGHT_FRAC
 

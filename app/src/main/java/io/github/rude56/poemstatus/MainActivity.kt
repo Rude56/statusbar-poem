@@ -12,12 +12,7 @@ import androidx.compose.ui.Modifier
 import io.github.rude56.poemstatus.ui.PoemApp
 import io.github.rude56.poemstatus.ui.theme.PoemTheme
 
-/**
- * 唯一 Activity：所有页面都在 Compose 内导航（不额外起 Activity）。
- *
- * <p>这样「古诗虫」入口与「古诗库」二级页的标题就是同一份 Compose 文本，
- * 结构审计测试可以直接在源码里交叉验证。
- */
+/** 唯一 Activity：所有页面都在 Compose 内导航（不额外起 Activity）。 */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

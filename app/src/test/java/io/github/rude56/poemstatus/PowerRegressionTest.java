@@ -14,9 +14,8 @@ import static org.junit.Assert.fail;
 /**
  * 省电回归：把「每 N 秒白干活」这类看不见的浪费钉成会失败的测试。
  *
- * <p>这些都是实测出来的真实问题 —— 每一条都能在 logcat 里看到对应的痕迹
- * （日志刷屏 / 状态栏反复重绘 / 跨进程反复唤醒），但都不影响功能，
- * 所以光靠功能测试永远抓不到，必须单独钉住。
+ * 这些浪费都不影响功能（日志刷屏 / 状态栏反复重绘 / 跨进程反复唤醒），
+ * 所以光靠功能测试抓不到，必须单独钉住。
  */
 public class PowerRegressionTest {
 
@@ -66,10 +65,10 @@ public class PowerRegressionTest {
     /**
      * 暂停态不得反复恢复系统栏。
      *
-     * <p>暂停期间 tick() 仍按心跳每 3 秒跑一次，每次都调 pause()。
+     * 暂停期间 tick() 仍按心跳每 3 秒跑一次，每次都调 pause()。
      * 而 restoreModules() 最终会走到 HolePuncher.clear() 里的 root.invalidate()
-     * —— 整条状态栏全量重绘。也就是「锁屏 / 白名单 / 横屏」这些正常暂停场景下，
-     * 旧代码每 3 秒白重绘一次状态栏。
+     * —— 整条状态栏全量重绘。所以「锁屏 / 白名单 / 横屏」这些正常暂停场景下，
+     * 恢复必须只在状态真的变化时发生。
      */
     @Test
     public void pauseDoesNotRestoreModulesRepeatedly() throws IOException {
@@ -87,21 +86,21 @@ public class PowerRegressionTest {
     /**
      * 没有洞要清的时候，clear() 不得触发重绘。
      *
-     * <p>restoreModules() 在暂停路径上会被反复调用，而 root.invalidate()
+     * restoreModules() 在暂停路径上会被反复调用，而 root.invalidate()
      * 是整条状态栏全量重绘。本来就没挖过洞，重绘一次的结果和屏幕上完全一样。
      */
     @Test
     public void clearingNothingDoesNotInvalidate() throws IOException {
         String hole = source("HolePuncher.java");
         String clear = bodyOf(hole, "static void clear()");
-        assertTrue("clear 必须判断「之前是否真的挖过洞」", clear.contains("hadClip"));
+        assertTrue("clear 必须判断「是否真的挖过洞」", clear.contains("hadClip"));
         assertTrue("只有在确实挖过洞时才 invalidate", clear.contains("hadClip && root != null"));
     }
 
     /**
      * 洞配置重建必须去重。
      *
-     * <p>refreshCutout() 会被 tick（心跳）无条件调用，而它一旦真跑起来就会
+     * refreshCutout() 会被 tick（心跳）无条件调用，而它一旦真跑起来就会
      * 重新解析洞、给每个洞 new int[]、拼日志字符串，最后 invalidate。
      * 洞没变的时候这些全是白干。
      */
@@ -111,10 +110,10 @@ public class PowerRegressionTest {
                 "private void refreshCutout(View container)");
         assertTrue("必须按 holesJson 去重", refresh.contains("lastHolesJson"));
         assertTrue("必须按状态栏高度去重（旋转要重建）", refresh.contains("lastHoleBarHeight"));
-        // 去重判定必须发生在真正重建之前。
+        // 去重判定必须排在真正重建前面。
         int guard = refresh.indexOf("lastHolesJson");
         int rebuild = refresh.indexOf("setHoleConfig(");
-        assertTrue("去重必须发生在重建之前", guard >= 0 && rebuild > guard);
+        assertTrue("去重必须排在重建前面", guard >= 0 && rebuild > guard);
         // 去重必须覆盖「两个条件都没变」的情况，否则等于没去重。
         assertTrue("必须整段提前返回", refresh.contains("return;"));
     }
@@ -122,7 +121,7 @@ public class PowerRegressionTest {
     /**
      * 帧间隔必须按速度自适应。
      *
-     * <p>既然规则是「位移不足 1px 就不画」，那回调节奏也不该固定 30fps ——
+     * 既然规则是「位移不足 1px 就不画」，那回调节奏也不该固定 30fps ——
      * 20px/s 时 1px 要走 50ms，每 33ms 醒一次纯属空转。
      */
     @Test
@@ -149,15 +148,14 @@ public class PowerRegressionTest {
     /**
      * 每帧回调不得分配对象。
      *
-     * <p>旧写法 {@code guard.guard("occlude", () -> runtime.updateOcclusion(...))}
-     * 里的 lambda 每次调用都会捕获 4 个 float 并分配一个新对象，30 次/秒。
+     * lambda 捕获 4 个 float 就会每次调用分配一个新对象，30 次/秒。
      */
     @Test
     public void perFrameCallbackDoesNotAllocate() throws IOException {
         String ctl = source("SystemUiController.java");
         String onFrame = bodyOf(ctl,
                 "public void onFrame(float left, float top, float right, float bottom)");
-        assertFalse("帧内不得分配 lambda（捕获变量会导致每帧一个对象）",
+        assertFalse("帧内不得分配 lambda（捕获变量会每帧产生一个对象）",
                 onFrame.contains("() ->"));
         assertFalse("帧内不得有 new", onFrame.contains("new "));
         // 必须走复用 Body 的快路径。
@@ -178,7 +176,7 @@ public class PowerRegressionTest {
     /**
      * 配置轮询必须分档，不能无条件每 2 秒跨进程读一次。
      *
-     * <p>真实代价有两层：SystemUI 每 2 秒醒一次；更糟的是如果本 App 进程已经死了，
+     * 代价有两层：SystemUI 每 2 秒醒一次；更糟的是如果本 App 进程已经死了，
      * 这次 call 会把它整个拉起来 —— 等于每 2 秒唤醒一个本该休眠的应用进程。
      */
     @Test
@@ -198,7 +196,7 @@ public class PowerRegressionTest {
         assertTrue("熄屏判定必须早于刷新判定", offBranch >= 0 && dirtyCheck > offBranch);
     }
 
-    /** 取色必须改成推送式，不得再有 300ms 定时轮询。 */
+    /** 取色必须是推送式：系统外观变化时由 TintState 回调，不得定时轮询。 */
     @Test
     public void colorSamplingIsPushedNotPolled() throws IOException {
         String sampler = source("ColorSampler.java");
@@ -210,61 +208,56 @@ public class PowerRegressionTest {
         // 推送式：系统外观变化时由 TintState 回调，而不是自己定时去问。
         assertTrue("必须有推送入口", sampler.contains("startTracking"));
         assertTrue("TintState 必须能回调", source("TintState.java").contains("setListener"));
-        // 兜底轮询周期必须明显变慢（原来 300ms）。
+        // 兜底轮询周期必须是低频。
         assertTrue("兜底轮询必须是低频", sampler.contains("SAMPLE_INTERVAL_MS = 2000L"));
-        assertFalse("不得再有 300ms 轮询", sampler.contains("300L"));
+        assertFalse("不得有 300ms 轮询", sampler.contains("300L"));
         // 推送必须合流：系统图标色切换是带动画的，applyIconTint 每帧都会调，
-        // 不合流等于把 300ms 轮询换成 60 次/秒轮询，比原来更费电。
+        // 不合流等于把低频轮询换成 60 次/秒轮询。
         assertTrue("推送必须合流", sampler.contains("COALESCE_MS"));
         assertTrue("合流后异步采样", sampler.contains("sampleRunnable"));
     }
 
     /**
-     * 「跳过系统挖孔」必须真正彻底移除。
+     * 「跳过系统挖孔」必须彻底不存在。
      *
-     * <p>这个开关曾经穿过 5 层参数，但没有任何一处调用 {@code CutoutSkipper.plan()}，
-     * 于是它「看起来存在、实际永远无效」。加了调用之后又与虫洞/隧道互相干扰：
-     * 挖孔把诗句切成多段时会提前 {@code return}，跳过下面的隧道裁剪与虫洞分段，
-     * 结果是「诗句横跨挖孔那一帧，虫洞传送整个失效」。
-     *
-     * <p>按需求整体删除。这里钉住的是「删干净了」：任何一处残留都会让
-     * 读者误以为它还生效。
+     * 它与虫洞/隧道互相干扰：挖孔把诗句切成多段时会提前 {@code return}，
+     * 跳过下面的隧道裁剪与虫洞分段，结果是「诗句横跨挖孔那一帧，虫洞传送整个失效」。
+     * 任何一处残留都会让读者误以为它还生效。
      */
     @Test
     public void cutoutSkippingIsFullyRemoved() throws IOException {
         for (String f : new String[]{"PoemRuntime.java", "SystemUiController.java",
                 "PoemConfig.java", "ConfigCodec.java", "ConfigStore.java", "ConfigKeys.java"}) {
             String text = source(f);
-            assertFalse(f + " 不得再引用 CutoutSkipper", text.contains("CutoutSkipper"));
-            assertFalse(f + " 不得再有 skipCutout 字段", text.contains("skipCutout"));
-            assertFalse(f + " 不得再读系统挖孔", text.contains("readSystemCutout"));
+            assertFalse(f + " 不得引用 CutoutSkipper", text.contains("CutoutSkipper"));
+            assertFalse(f + " 不得有 skipCutout 字段", text.contains("skipCutout"));
+            assertFalse(f + " 不得读系统挖孔", text.contains("readSystemCutout"));
             // 注意：LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS 是合法的窗口参数
-            // （让诗句层能铺到挖孔区域），与被删掉的「读取挖孔矩形来避让」是两件事。
-            assertFalse(f + " 不得再读占位挖孔矩形",
+            // （让诗句层能铺到挖孔区域），与「读取挖孔矩形来避让」是两件事。
+            assertFalse(f + " 不得读占位挖孔矩形",
                     text.contains("getBoundingRects") || text.contains("getDisplayCutout"));
         }
-        assertFalse("CutoutSkipper 类必须已删除",
+        assertFalse("CutoutSkipper 类必须不存在",
                 new File(MAIN, "CutoutSkipper.java").isFile());
-        assertFalse("设置页不得再有该开关",
+        assertFalse("设置页不得有该开关",
                 source("ui/SettingsScreen.kt").contains("skip_cutout"));
-        assertFalse("字符串必须已删除",
+        assertFalse("字符串不得含 skip_cutout",
                 read(new File(RES, "values/strings.xml")).contains("skip_cutout"));
     }
 
     /**
-     * 预览层已彻底移到 App 侧，SystemUI 不得再留半套实现。
+     * 预览层只在 App 侧实现，SystemUI 不得留半套。
      *
-     * <p>之前 cutoutPreview 标志根本没有任何地方设为 true，
-     * 但 SystemUI 里仍常驻着一整条预览挂载路径（OverlayView 预览实例、
-     * 预览画笔、逐帧判断），纯属死代码，还会误导读代码的人。
+     * SystemUI 侧的预览挂载路径（OverlayView 预览实例、预览画笔、逐帧判断）是死代码，
+     * 会误导读代码的人。
      */
     @Test
     public void previewSubsystemIsFullyRemovedFromSystemUi() throws IOException {
         String rt = source("PoemRuntime.java");
-        assertFalse("不得再有预览层实例", rt.contains("overlayPreview"));
-        assertFalse("不得再有预览专用字段", rt.contains("previewOnlyVisible"));
-        assertFalse("不得再有预览画笔", rt.contains("previewFill"));
-        assertFalse("不得再有预览挂载入口", rt.contains("void showHolePreview("));
+        assertFalse("不得有预览层实例", rt.contains("overlayPreview"));
+        assertFalse("不得有预览专用字段", rt.contains("previewOnlyVisible"));
+        assertFalse("不得有预览画笔", rt.contains("previewFill"));
+        assertFalse("不得有预览挂载入口", rt.contains("void showHolePreview("));
         // 框由 App 自己画，这一点必须仍成立。
         assertTrue("App 侧仍必须自己画框",
                 new File(MAIN, "ui/HoleFrameOverlay.kt").isFile());
@@ -292,9 +285,9 @@ public class PowerRegressionTest {
     /**
      * 重启 SystemUI 不得阻塞主线程。
      *
-     * <p>{@code ProcessBuilder(...).waitFor()} 会一直等到子进程退出，而 root
+     * {@code ProcessBuilder(...).waitFor()} 会一直等到子进程退出，而 root
      * 管理器（Magisk / KernelSU）默认会弹授权框等用户点「允许」。
-     * 以前这是同步调用、直接在按钮 onClick（主线程）里 —— 用户犹豫几秒就 ANR。
+     * 同步调用放在按钮 onClick（主线程）里，用户犹豫几秒就 ANR。
      */
     @Test
     public void restartingSystemUiIsOffTheMainThread() throws IOException {
@@ -309,25 +302,24 @@ public class PowerRegressionTest {
     }
 
     /**
-     * 拖动排序的行高必须实测，不能写死像素。
+     * 拖动排序的行高必须来自测量，不能写死像素。
      *
-     * <p>以前写的是 {@code rowHeightPx = 108f}，在 640dpi（density 4.0）下
-     * 只有 27dp，而真实卡片约 67dp ≈ 268px —— 拖 1/4 行就换位，列表会「抢跑」。
+     * 写死 {@code rowHeightPx = 108f} 在 640dpi（density 4.0）下只有 27dp，
+     * 而真实卡片约 67dp ≈ 268px —— 拖 1/4 行就换位，列表会「抢跑」。
      */
     @Test
     public void dragReorderUsesMeasuredRowHeight() throws IOException {
         String library = source("ui/LibraryScreen.kt");
         assertFalse("不得写死行高像素", library.contains("= 108f"));
-        assertTrue("必须实测行高", library.contains("onGloballyPositioned"));
-        assertTrue("必须把实测值用在换位判定上", library.contains("rowHeightPx"));
+        assertTrue("必须测量行高", library.contains("onGloballyPositioned"));
+        assertTrue("必须把测量值用在换位判定上", library.contains("rowHeightPx"));
     }
 
     /**
      * 洞页的两个动画样例必须按时间推进，不能按帧数累加。
      *
-     * <p>以前是 {@code while(true){ awaitFrame(); progress += 0.0006f }} ——
-     * 120Hz 屏上每秒重组 120 次；而且「一轮 14 秒」是按 120Hz 推算的，
-     * 60Hz 设备上会变成 28 秒，速度随刷新率变。
+     * 按帧累加（{@code progress += 0.0006f}）在 120Hz 屏上每秒重组 120 次；
+     * 而且「一轮 14 秒」是按 120Hz 推算的，60Hz 设备上会变成 28 秒，速度随刷新率变。
      */
     @Test
     public void holeSamplesAdvanceByTimeNotFrames() throws IOException {
@@ -365,20 +357,16 @@ public class PowerRegressionTest {
         assertTrue(new File(MAIN, "ViewTree.java").isFile());
     }
 
-    // ------------------------------------------------------------ 洞同步（重启后失效）
+    // ------------------------------------------------------------ 洞同步
 
     /**
-     * 洞列表必须在<b>诗句层被创建/重挂载时</b>也同步一次，不能只在配置变化时同步。
+     * 洞列表必须在诗句层被创建/重挂载时也同步一次，不能只在配置变化时同步。
      *
-     * <p>这是真机上「每次重启 SystemUI，文字不遮挡、不跳过虫洞，非得新添加一个洞」
-     * 的根因：全新启动时 {@code refreshCutout()} 第一次运行的时刻 Overlay 还不存在
+     * 全新启动时 {@code refreshCutout()} 第一次运行的时刻 Overlay 还不存在
      * （第一首诗都没开始），那次 {@code overlay.setHoles()} 被跳过；而
      * {@code refreshCutout()} 又按 {@code holesJson} 去重，配置不变就再也不会推。
      * 于是诗句层的洞列表永远是空的 —— 整句连续绘制、不跳虫洞，
-     * 而遮挡却按虫洞切出来的段去挖，洞那段既不画断也不挖洞，
-     * 看上去就是「文字直接压在状态栏图标上」。
-     *
-     * <p>用户加一个洞会改 {@code holesJson}，去重失效、立刻恢复 —— 正是现象来源。
+     * 而遮挡却按虫洞切出来的段去挖，看上去就是「文字直接压在状态栏图标上」。
      */
     @Test
     public void holesArePushedWhenOverlayIsCreated() throws IOException {
@@ -388,7 +376,7 @@ public class PowerRegressionTest {
         // 配置变化时要推。
         String cfg = bodyOf(rt, "void setHoleConfig(List<HoleRects.Hole> holes)");
         assertTrue("配置变化时必须推给诗句层", cfg.contains("pushHolesToOverlay()"));
-        // 挂载时也要推 —— 这才是重启后失效的那一次。
+        // 挂载时也要推 —— 重启后失效的那一次就靠这里补上。
         String attach = bodyOf(rt, "private boolean ensureOverlayAttached()");
         assertTrue("Overlay 创建/重挂载时必须补推一次洞列表",
                 attach.contains("pushHolesToOverlay()"));
@@ -401,11 +389,10 @@ public class PowerRegressionTest {
     // ------------------------------------------------------------ 白名单
 
     /**
-     * 前台刷新的节流不得<b>吞掉</b>状态更新。
+     * 前台刷新的节流不得吞掉状态更新。
      *
-     * <p>任务栈监听在事件后 250ms 触发，而节流窗口是 400ms —— 旧实现里
-     * 被节流挡住的那次会被直接丢弃，且没人补跑，前台就永远停在过时的值上。
-     * 表现是「加了白名单应用，在它里面照滚」，而且没有任何日志可查。
+     * 任务栈监听在事件后 250ms 触发，而节流窗口是 400ms —— 被节流挡住的那次
+     * 必须记账并补跑，否则前台就永远停在过时的值上，且没有任何日志可查。
      */
     @Test
     public void foregroundRefreshThrottleDoesNotDropUpdates() throws IOException {
@@ -421,7 +408,7 @@ public class PowerRegressionTest {
     /**
      * 前台包名解析必须有多个候选。
      *
-     * <p>{@code ActivityTaskManager.getTasks} 的签名在版本间反复变过
+     * {@code ActivityTaskManager.getTasks} 的签名在版本间反复变过
      * （`(int)` / `(int,boolean)` / `(int,boolean,boolean)` / `(int,boolean,boolean,int)`）。
      * 写死某一个重载在部分 ROM 上直接 {@code NoSuchMethodException}，
      * 而 {@code getRunningTasks} 对非自家进程常返回空 —— 两条都失败就静默失效。
@@ -465,13 +452,12 @@ public class PowerRegressionTest {
     // ------------------------------------------------------------ 24 小时常驻
 
     /**
-     * 熄屏后不得再有任何定时器。
+     * 熄屏后不得有任何定时器。
      *
-     * <p>这是本次审计里最贵的一条：心跳原本是固定 8 秒续期、前台轮询固定 5 秒续期，
-     * <b>都不看屏幕状态</b>。熄屏 8 小时 = 3600 次心跳 + 5760 次跨进程反射查前台，
+     * 心跳与前台轮询都必须看屏幕状态：熄屏 8 小时 = 3600 次心跳 + 5760 次跨进程反射查前台，
      * 而屏幕是黑的，这些唤醒换不来任何用户可见的效果。
      *
-     * <p>亮屏有广播、任务栈变化有监听、配置变化有 ContentObserver，
+     * 亮屏有广播、任务栈变化有监听、配置变化有 ContentObserver，
      * 不存在「只能靠定时器才发现」的事件，所以熄屏时完全可以归零。
      */
     @Test
@@ -481,7 +467,7 @@ public class PowerRegressionTest {
         assertTrue("熄屏必须直接返回（不续期）", heartbeat.contains("if (!screenInteractive)"));
         assertTrue("必须有「模块关闭」档", heartbeat.contains("IDLE_HEARTBEAT_MS"));
 
-        // 熄屏分支必须出现在 postDelayed 之前，否则还是会续期。
+        // 熄屏分支必须排在 postDelayed 前面，否则还是会续期。
         int guard = heartbeat.indexOf("!screenInteractive");
         int post = heartbeat.indexOf("postDelayed");
         assertTrue("熄屏判定必须早于续期", guard >= 0 && post > guard);
@@ -502,8 +488,7 @@ public class PowerRegressionTest {
     /**
      * 24 小时的日志量必须有上限。
      *
-     * <p>实测：改之前每首诗打 7 行、约 13 秒一首 —— 每天 4.6 万行写进 logd。
-     * 日志要落盘到环形缓冲区，那是实打实的 IO 与唤醒。现在凡是「每首都发生」
+     * 日志要落盘到环形缓冲区，那是实打实的 IO 与唤醒。凡是「每首都发生」
      * 的日志都必须经过 {@link Log#allow(String, long)} 限频。
      */
     @Test
@@ -525,7 +510,7 @@ public class PowerRegressionTest {
         assertTrue("暂停必须无条件记录",
                 state.contains("state == PoemEngine.State.PAUSED"));
 
-        // 诗句层的每首日志已经并进 POEM start，不得再单独打一条。
+        // 诗句层的每首日志已经并进 POEM start，不单独打一条。
         String rt = source("PoemRuntime.java");
         String start = bodyOf(rt, "boolean start(String text, int speedPx, boolean bob, Listener l)");
         assertFalse("POEM hole root 不得单独成一条（已并入 POEM start）",
@@ -540,8 +525,8 @@ public class PowerRegressionTest {
     /**
      * 换首不得增删 View。
      *
-     * <p>{@code addView/removeView} 会触发整棵状态栏 requestLayout + 重新挂载，
-     * 比一次 invalidate 贵一个数量级，而它以前是<b>每首诗一次</b>。
+     * {@code addView/removeView} 会触发整棵状态栏 requestLayout + 重新挂载，
+     * 比一次 invalidate 贵一个数量级，而且每首诗都会发生一次。
      * 重新挂载还会连带重跑取色订阅与内容根 DFS 扫描。
      */
     @Test
@@ -560,8 +545,8 @@ public class PowerRegressionTest {
     /**
      * 前台解析不得每轮都反射枚举方法。
      *
-     * <p>{@code getMethods()} 每次都会新建 Method[] 并克隆参数类型数组。
-     * 以前每 5 秒跑一遍，24 小时几万次 —— 全是可缓存的常量。
+     * {@code getMethods()} 每次都会新建 Method[] 并克隆参数类型数组，
+     * 24 小时几万次轮询全是可缓存的常量。
      */
     @Test
     public void foregroundReflectionIsCached() throws IOException {
@@ -577,7 +562,7 @@ public class PowerRegressionTest {
     /**
      * 每次拉配置不得新建 Handler。
      *
-     * <p>24 小时几万次轮询 = 几万个短命 Handler 对象，纯喂 GC。
+     * 24 小时几万次轮询 = 几万个短命 Handler 对象，纯喂 GC。
      */
     @Test
     public void configFetcherReusesItsHandler() throws IOException {

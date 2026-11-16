@@ -7,10 +7,9 @@ import kotlinx.coroutines.withContext
 /**
  * 维护动作：重启 SystemUI（需要 root；无 root 时给出提示）。
  *
- * <p><b>必须异步</b>：{@code ProcessBuilder(...).waitFor()} 会阻塞调用线程，
- * 而 root 管理器（Magisk / KernelSU / APatch）默认会弹授权框等用户点「允许」。
- * 以前这里是同步调用、且在按钮的 onClick（主线程）里 —— 用户只要犹豫几秒
- * 就会 ANR（"应用无响应"）。现在整段跑在 IO 线程，主线程只等一个挂起结果。
+ * 必须异步：{@code ProcessBuilder(...).waitFor()} 会阻塞调用线程，而 root 管理器
+ * （Magisk / KernelSU / APatch）默认会弹授权框等用户点「允许」，同步调用在主线程上会 ANR。
+ * 整段跑在 IO 线程，主线程只等一个挂起结果。
  */
 object RestartHelper {
 

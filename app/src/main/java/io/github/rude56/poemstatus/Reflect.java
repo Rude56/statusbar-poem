@@ -4,16 +4,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 /**
- * 现代 libxposed API 的反射小工具。
- *
- * <p>旧 API 有 {@code XposedHelpers} 这一整套便捷方法，现代 API 有意不再提供
- * （框架只管 hook，查找与调用交给模块自己做）。本类只补上本项目真正用到的几个：
- * 按名字找类、按签名找方法、读写字段、调方法。
- *
- * <p><b>为什么值得单独一层</b>：这些调用全都可能因为 ROM 差异抛
- * {@code NoSuchMethodException} / {@code NoSuchFieldException}，
- * 而状态栏 Hook 最怕的就是「一个反射失败把整条初始化链打断」。
- * 所以统一在这里捕获并返回 null，由调用方决定降级策略。
+ * 本地反射工具：现代 libxposed API 只负责 hook，类/方法查找与字段调用由模块自备（{@code XposedHelpers} 的对等物）。
+ * 所有调用都可能因 ROM 差异失败，这里统一捕获并返回 null，由调用方决定降级策略。
  */
 final class Reflect {
 
@@ -40,14 +32,8 @@ final class Reflect {
     }
 
     /**
-     * 按「方法名 + 参数类型名」找方法。
-     *
-     * <p><b>数组要特别当心</b>：{@code Class.getName()} 对数组返回的是
-     * JVM 描述符形式 {@code [Lcom.android.internal.view.AppearanceRegion;}，
-     * 而不是源码里写的 {@code com.android.internal.view.AppearanceRegion[]}。
-     * 只按源码写法比较的话，所有带数组参数的方法都会静默匹配失败 ——
-     * 这正是 {@code onStatusBarAppearanceChanged} 一开始挂不上的原因。
-     * 所以这里两种写法都接受。
+     * 按「方法名 + 参数类型名」找方法。数组参数两种写法都接受：{@code Class.getName()} 返回 JVM 描述符
+     * {@code [La.b.C;}，源码写法是 {@code a.b.C[]}，只比一种会静默匹配失败。
      *
      * @param paramNames 参数类型名；{@code null} 表示该位置不校验类型
      */
@@ -109,12 +95,7 @@ final class Reflect {
         return findMethod(cls, name);
     }
 
-    /**
-     * 宽松匹配：按「方法名 + 参数个数（+ 首参是否数组）」找。
-     *
-     * <p>用于那些签名在 ROM 之间会微调的钩子点 —— 精确匹配失败时用它兜底，
-     * 总比「整条特性静默失效」好。只在初始化时调用一次，不在热路径上。
-     */
+    /** 宽松匹配：按「方法名 + 参数个数（+ 首参是否数组）」找，用于签名在 ROM 之间会微调的钩子点；只在初始化时调用。 */
     static Method findMethodLoose(Class<?> cls, String name, int paramCount, boolean firstIsArray) {
         if (cls == null || name == null) {
             return null;

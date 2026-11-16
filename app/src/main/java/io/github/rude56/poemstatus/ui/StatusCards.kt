@@ -31,16 +31,7 @@ import androidx.compose.ui.unit.dp
 import io.github.rude56.poemstatus.R
 
 /**
- * LSPosed 连接状态。
- *
- * <p>这是全模块<b>最容易被误解</b>的一件事：装好了、开关也开了，但状态栏没反应。
- * 原因几乎总是下面三种之一：
- * <ol>
- *   <li>LSPosed 里没启用这个模块；</li>
- *   <li>启用了但作用域没勾「系统界面」；</li>
- *   <li>都对了，但装完没重启 SystemUI，跑的仍是旧代码。</li>
- * </ol>
- * 以前用户只能靠「有没有反应」来猜，现在这里直接给出结论。
+ * LSPosed 连接状态：装好了、开关也开了但状态栏没反应时，给出排查方向。
  *
  * @param connected  SystemUI 最近是否来读过配置
  * @param secondsAgo 距离上次读取过了多少秒（connected 为 false 时无意义）
@@ -127,10 +118,7 @@ fun ConnectionCard(
 
 /**
  * 配置速览：把当前最关键的几项设置压成一行，只读、不跳转。
- *
- * <p>为什么不放快捷入口：底部导航已经有「古诗库」和「设置」，
- * 主页再放一遍只是重复。这里给的是<b>一眼确认「现在是什么配置」</b>，
- * 比如突然觉得诗滚太快，扫一眼就知道速度是 191 还是 600。
+ * 目的是一眼确认「现在是什么配置」，比如突然觉得诗滚太快，扫一眼就知道速度是多少。
  */
 @Composable
 fun ConfigSummaryCard(

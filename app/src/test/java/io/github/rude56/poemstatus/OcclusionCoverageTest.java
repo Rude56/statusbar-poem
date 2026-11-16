@@ -7,26 +7,10 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * 遮挡必须跟着<b>文字真正画出来的位置</b>走。
+ * 遮挡必须跟着文字真正画出来的位置走。
  *
- * <p>用户报的现象：「虫洞能正确传送文字，但不能正确传送遮挡，文字到了，不会遮挡」。
- *
- * <p>根因：{@code updateOcclusion} 里用
- * <pre>
- *   if (segR &lt;= l + originX || segL &gt;= barW + originX) continue;
- * </pre>
- * 做可见性过滤。其中 {@code l} 是<b>轨道</b>左端（未减跳跃位移），
- * 而 {@code segL/segR} 是<b>屏幕</b>坐标（已减掉一个洞宽）。
- * 于是「已经传送到洞口左边」的那一段，屏幕右端可能小于轨道左端，
- * 被误判成「还没进入状态栏」而<b>整段丢掉</b>：
- * 文字画在洞左边，遮挡却没跟过去。偏差从 0 一路涨到接近一整个洞宽。
- *
- * <p>这一组测试是<b>行为验证</b>，不是源码字符串匹配 ——
- * 上一个 bug 恰好证明了字符串断言对这个类问题完全无效。
- *
- * <p>校验口径：把「文字层实际画出来的像素集合」与「遮挡层实际挖掉的像素集合」
- * 逐帧比较，前者必须被后者完整覆盖。两个集合都按真实语义构造：
- * 虫洞分段（{@link HoleRects#wormholeSegments}）与隧道裁剪都要参与。
+ * 把「文字层实际画出来的像素集合」与「遮挡层实际挖掉的像素集合」逐帧比较，
+ * 前者必须被后者完整覆盖；两个集合都按真实语义构造（虫洞分段 + 隧道裁剪）。
  */
 public class OcclusionCoverageTest {
 
@@ -53,7 +37,7 @@ public class OcclusionCoverageTest {
     /**
      * 文字层真正画出来的区间（屏幕坐标）。
      *
-     * <p>必须与 {@code drawTextWithHoles} 一致：虫洞分段逐个 {@code clipRect} 后平移绘制，
+     * 必须与 {@code drawTextWithHoles} 一致：虫洞分段逐个 {@code clipRect} 后平移绘制，
      * 再叠加隧道的 {@code clipOutRect}。所以这里 = 分段 ∩ 非隧道 ∩ 屏幕。
      */
     private static int drawnSpans(List<HoleRects.Hole> holes, float left) {
@@ -129,13 +113,13 @@ public class OcclusionCoverageTest {
 
     @Test
     public void largeWormholeOcclusionFollowsTheTeleportedText() {
-        // 洞越宽，旧实现的偏差越大（最大接近一整个洞宽）。
+        // 洞越宽，任何坐标偏差都被放大到接近一整个洞宽。
         assertEveryDrawnPixelIsCovered("150:450:wormhole");
     }
 
     @Test
     public void wormholePlusTunnelOcclusionStillCoversEverything() {
-        // 这是本机当前真实配置：虫洞 + 隧道并存。
+        // 虫洞 + 隧道并存：两种洞同时参与绘制与遮挡。
         assertEveryDrawnPixelIsCovered("170:270:wormhole,1070:1170:tunnel");
     }
 
@@ -189,8 +173,8 @@ public class OcclusionCoverageTest {
     /**
      * 遮挡分段必须严格递增、两两不重叠。
      *
-     * <p>重叠会让同一个区间被 {@code clipOutRect} 两次 —— 结果不变，
-     * 但绘制层与遮挡层的段数对不上时，重叠就是「段被算错」的第一个信号。
+     * 重叠会让同一个区间被 {@code clipOutRect} 两次；绘制层与遮挡层的段数对不上时，
+     * 重叠就是「段被算错」的第一个信号。
      */
     @Test
     public void occlusionSegmentsAreOrderedAndDisjoint() {
@@ -218,14 +202,10 @@ public class OcclusionCoverageTest {
     /**
      * 状态栏不在屏幕原点时，「文字画在哪，遮挡就在哪」仍然必须成立。
      *
-     * <p><b>为什么单独测这个</b>：上面所有用例都按 {@code originX = 0} 构造 ——
-     * 而这恰好是唯一能掩盖「原点被加两次 / 忘加」的取值。
-     * 这类 bug 已经真实发生过两次（一次是无洞快路径直接丢本地坐标，
-     * 一次是虫洞可见性判据混用了轨道与屏幕坐标），两次都只在原点非 0 时才露出来。
-     *
-     * <p>注意不能简单地说「换个原点，结果应该平移」：{@code barW} 不变时，
-     * 换原点等于把状态栏挪到屏幕的<b>另一个位置</b>，那是另一个场景，不是同一个。
-     * 唯一恒定成立的关系是：<b>遮挡段（屏幕坐标）必须等于绘制段（本地坐标）+ 原点</b>。
+     * {@code originX = 0} 恰好是唯一能掩盖「原点被加两次 / 忘加」的取值，所以必须单独测。
+     * 注意不能简单地说「换个原点，结果应该平移」：{@code barW} 不变时，换原点等于把状态栏挪到
+     * 屏幕的另一个位置，那是另一个场景。唯一恒定成立的关系是：
+     * 遮挡段（屏幕坐标）必须等于绘制段（本地坐标）+ 原点。
      */
     @Test
     public void occlusionMatchesDrawingAtAnyOrigin() {
@@ -300,7 +280,7 @@ public class OcclusionCoverageTest {
     /**
      * 状态栏不在原点时，遮挡段绝不允许越出状态栏范围。
      *
-     * <p>越界意味着在状态栏外面挖了一个看不见的洞，同时本该遮住的图标没被遮住。
+     * 越界意味着在状态栏外面挖了一个看不见的洞，同时本该遮住的图标没被遮住。
      */
     @Test
     public void occlusionNeverEscapesTheBar() {

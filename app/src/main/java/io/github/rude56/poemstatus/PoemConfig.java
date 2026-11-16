@@ -42,15 +42,8 @@ public final class PoemConfig {
     }
 
     /**
-     * 把 {@code holesJson} 归一成存储格式 {@code "l:r:mode:slot,..."}。
-     *
-     * <p>两种输入都要接受：存储格式本身，以及早期/手改留下的 JSON 数组。
-     *
-     * <p><b>JSON 分支必须走 {@link HoleRects#encode}</b>：这里曾经手工拼
-     * {@code "l:r"}（只有两个字段），于是 <b>模式与颜色槽位被直接丢掉</b> ——
-     * 隧道洞读回来变成虫洞（「我明明设的是隧道，重启后变成传送了」），
-     * 洞的颜色也会重排。既然这个分支存在的意义就是「把旧数据读对」，
-     * 它就不该比正常路径更不保真。
+     * 把 {@code holesJson} 归一成存储格式 {@code "l:r:mode:slot,..."}；存储格式与 JSON 数组两种输入都接受。
+     * JSON 分支必须走 {@link HoleRects#encode}：否则模式与颜色槽位会丢失（隧道洞读回变成虫洞、颜色重排）。
      */
     private String encodeHoles() {
         String raw = holesJson == null ? "" : holesJson.trim();
@@ -87,15 +80,7 @@ public final class PoemConfig {
         return this;
     }
 
-    /**
-     * 这个包名是否在白名单里。
-     *
-     * <p>匹配必须<b>宽容</b>：白名单可能是手输/粘贴进来的，带首尾空格、
-     * 大小写不一致都很常见；而包名一旦差一个空格就永远匹配不上，
-     * 表现为「加了白名单却完全不生效」，且没有任何报错可查。
-     * 所以这里忽略首尾空白并忽略大小写（Android 包名本身是小写，
-     * 但用户手输时很容易带上大写）。
-     */
+    /** 这个包名是否在白名单里：匹配忽略首尾空白与大小写（白名单可能是手输/粘贴进来的）。 */
     public boolean isWhitelisted(String pkg) {
         if (pkg == null) {
             return false;
@@ -116,12 +101,7 @@ public final class PoemConfig {
         return false;
     }
 
-    /**
-     * 深拷贝（Kotlin UI 侧使用 {@code cfg.copy()} 语法的对等物）。
-     *
-     * <p>Java 类没有 data class 的自动 copy，这里显式提供，避免 UI 里到处手写
-     * 一份完整字段赋值 —— 新增字段时只改这一处，漏改会立刻在编译期暴露。
-     */
+    /** 深拷贝：新增字段时只改这一处，漏改会立刻在编译期暴露。 */
     public PoemConfig copy() {
         PoemConfig c = new PoemConfig();
         c.enabled = enabled;

@@ -58,17 +58,9 @@ import io.github.rude56.poemstatus.ui.theme.holeColor
 import kotlinx.coroutines.delay
 
 /**
- * 洞（二级页）—— 界面与「古诗库」保持一致：卡片列表、点一下进编辑页、
- * 左右滑动删除、右下角加号新增。
- *
- * <p>一致性是刻意的：用户在诗库里学到的操作方式（点开、滑删、长按排序）
- * 在这里应该原样成立，不需要再学一遍。
- *
- * <p>彩色框由 {@code PoemApp} 里的 {@link HoleFrameOverlay} 直接画在 App 窗口的
- * 状态栏区域上，进入本页即出现、离开即消失，没有任何开关或跨进程标志。
- *
- * <p>颜色：每个洞带一个<b>槽位</b>，槽位跟着洞走。删掉别的洞、改边界导致重排，
- * 这个洞的颜色都不会变 —— 否则用户会觉得「我什么都没动，颜色却变了」。
+ * 洞（二级页）：卡片列表、点一下进编辑页、左右滑动删除、右下角加号新增，操作方式与「古诗库」一致。
+ * 彩色框由 {@code PoemApp} 里的 {@link HoleFrameOverlay} 直接画在 App 窗口的状态栏区域上，进出本页即显示/消失。
+ * 每个洞带一个槽位，槽位跟着洞走：删掉别的洞、改边界导致重排，这个洞的颜色都不会变。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,8 +174,7 @@ fun CutoutScreen(
     ) {
         ExtendedFloatingActionButton(
             onClick = {
-                // 上限与「没地方放」都必须给用户反馈：之前这两种情况都是
-                // 点一下毫无反应，用户只会以为按钮坏了。
+                // 上限与「没地方放」都必须给用户反馈：否则点一下毫无反应，用户只会以为按钮坏了。
                 if (holes.size >= HoleRects.MAX_HOLES) {
                     snackbar(maxReachedMsg)
                     return@ExtendedFloatingActionButton
@@ -193,8 +184,7 @@ fun CutoutScreen(
                     snackbar(noRoomMsg)
                     return@ExtendedFloatingActionButton
                 }
-                // 双保险：findFreeSpot 保证不重叠，但万一将来它改了实现，
-                // 这里也不允许把重叠的洞写进配置（重叠会让绘制层自相矛盾）。
+                // 双保险：findFreeSpot 保证不重叠，这里也不允许把重叠的洞写进配置（重叠会让绘制层自相矛盾）。
                 if (HoleRects.overlapsAny(holes, spot[0], spot[1], -1)) {
                     snackbar(noRoomMsg)
                     return@ExtendedFloatingActionButton

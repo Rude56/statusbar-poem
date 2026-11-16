@@ -4,15 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-/**
- * 画布裁剪栈。
- *
- * <p>这一组直接钉住一个「会永久损坏状态栏」的缺陷：
- * 旧实现用单一计数 {@code savedClips} 记录 save 次数，并在每次 {@code beginClip}
- * 时清零。{@code View.draw} 一旦被重入，内层清零会让外层 {@code endClip}
- * 以为无事可做而<b>不 restore</b>，裁剪就永久留在内容根上 ——
- * 图标缺一块、没有日志、只能重启 SystemUI。
- */
+/** 画布裁剪栈：push/pop 必须严格后进先出。View.draw 可能重入，单一计数会被内层抹掉，裁剪会永久残留。 */
 public class ClipStackTest {
 
     @Test
@@ -36,12 +28,7 @@ public class ClipStackTest {
         assertEquals(0, s.depth());
     }
 
-    /**
-     * 重入场景：内层清零不得抹掉外层的保存点。
-     *
-     * <p>这是旧实现真正坏掉的地方 ——
-     * 用同样的调用序列跑一遍：两次 push、两次 pop，两个保存点都必须拿得回来。
-     */
+    /** 重入场景：两次 push、两次 pop，两个保存点都必须拿得回来。 */
     @Test
     public void reentrantPushKeepsOuterSavePoint() {
         ClipStack s = new ClipStack();
@@ -82,9 +69,7 @@ public class ClipStackTest {
         assertEquals(7, s.pop());
     }
 
-    /**
-     * 反复 push/pop 不得残留状态（帧循环里每秒跑 30 次，泄漏会累积）。
-     */
+    /** 反复 push/pop 不得残留状态（帧循环里每秒跑 30 次，泄漏会累积）。 */
     @Test
     public void repeatedCyclesLeaveNoResidue() {
         ClipStack s = new ClipStack();

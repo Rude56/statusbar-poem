@@ -9,9 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 一条诗句。不可变对象，App 与 SystemUI 共用。
- *
- * <p>刻意不保存像素宽度：不同设备/字号下 SystemUI 的字体测量结果不同，
+ * 一条诗句。不可变对象，App 与 SystemUI 共用；不保存像素宽度，
  * 宽度必须在 SystemUI 进程内按真实 Paint 测量后放进 LRU 缓存。
  */
 public final class PoemItem {
@@ -38,7 +36,7 @@ public final class PoemItem {
     }
 
     /**
-     * 实际显示文本。作者/出处被关掉时这里就不会拼接，
+     * 实际显示文本：作者/出处被关掉时不拼接，
      * 因此文字宽度、滚动时长、遮挡包围盒都基于真正的显示内容计算。
      */
     public String displayText(boolean showAuthor, boolean showSource) {
@@ -116,7 +114,7 @@ public final class PoemItem {
                 }
             }
         } catch (Throwable ignored) {
-            // 同上：极端实现下也不抛。
+            // 极端实现下也不抛，兜底防御。
         }
         return arr.toString();
     }

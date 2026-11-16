@@ -8,15 +8,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 重绘区域的<b>正确性</b>：洞跟着诗句往左走，旧位置必须被擦掉。
+ * 重绘区域的正确性：洞跟着诗句往左走，旧位置必须被擦掉。
  *
- * <p>这是一个真实存在过、但<b>完全不影响功能测试</b>的缺陷：
- * {@code HolePuncher} 每帧只重绘「这一帧的洞」，而洞是往左移动的 ——
- * 诗句让出来的那条右侧条带，上一帧被 {@code clipOutRect} 挖掉的像素
- * 并没有被重画，于是状态栏图标会缺一条，并且随着时间越拖越长。
- *
- * <p>为什么这一条必须用行为测试钉住：它不产生异常、不改变任何 API、
- * 不影响任何「覆盖率」指标，只在屏幕上慢慢露出来。
+ * {@code HolePuncher} 每帧只重绘「这一帧的洞」，而洞在左移 —— 诗句让出来的那条右侧条带
+ * 必须由本帧的重绘区一并覆盖，否则状态栏图标会缺一条并越拖越长。
  */
 public class OcclusionCoverageTest2 {
 
@@ -31,9 +26,9 @@ public class OcclusionCoverageTest2 {
     private static final float[] VIS_R = new float[CAP];
 
     /**
-     * 一帧的可见段（与运行时走<b>同一条</b>路径：先虫洞分段，再算可见段）。
+     * 一帧的可见段（与运行时走同一条路径：先虫洞分段，再算可见段）。
      *
-     * <p>注意必须把分段的真实输出喂给 {@code visibleSegments}，
+     * 必须把分段的真实输出喂给 {@code visibleSegments}，
      * 传 null 会走「没有虫洞」的整条轨道分支 —— 那样测不到多段情形。
      */
     private static int visible(float left, List<HoleRects.Hole> holes) {
@@ -46,7 +41,7 @@ public class OcclusionCoverageTest2 {
     /**
      * 模拟 {@code HolePuncher} 的脏区记账。
      *
-     * <p>与实现同一套算术：脏区 = 本帧所有段的并集 ∪ 上一帧还没被擦掉的并集。
+     * 与实现同一套算术：脏区 = 本帧所有段的并集 ∪ 上一帧还没被擦掉的并集。
      */
     private static final class DirtyTracker {
         int lastL;
@@ -81,8 +76,8 @@ public class OcclusionCoverageTest2 {
     /**
      * 诗句一路左移：每一帧的重绘区都必须覆盖「上一帧被挖掉的范围」。
      *
-     * <p>这正是原缺陷：只重绘 {@code [新left, 新right]}，
-     * 而 {@code 新right &lt; 旧right}，于是 {@code [新right, 旧right]} 永远没人补画。
+     * 只重绘 {@code [新left, 新right]} 时，{@code 新right &lt; 旧right}，
+     * 那么 {@code [新right, 旧right]} 就永远没人补画。
      */
     @Test
     public void repaintCoversTheAreaThePoemJustLeft() {
@@ -107,7 +102,7 @@ public class OcclusionCoverageTest2 {
             assertTrue("第 " + frames + " 帧重绘区 " + dirty[0] + "-" + dirty[1]
                             + " 没覆盖本帧的洞 " + (int) VIS_L[0] + "-" + (int) VIS_R[n - 1],
                     dirty[0] <= (int) VIS_L[0] && dirty[1] >= (int) VIS_R[n - 1]);
-            // 度量的是「<b>少</b>画了多少」，不是多画多少：
+            // 度量的是「少画了多少」，不是多画多少：
             // 多画是刻意的（上一帧的洞必须一起补），少画才是缺陷。
             worstMiss = Math.max(worstMiss,
                     Math.max(0, (int) VIS_L[0] - dirty[0])
@@ -119,10 +114,9 @@ public class OcclusionCoverageTest2 {
     }
 
     /**
-     * 每一帧的重绘区必须覆盖<b>上一帧的整条洞范围</b> —— 逐帧逐步验证。
+     * 每一帧的重绘区必须覆盖上一帧的整条洞范围 —— 逐帧逐步验证。
      *
-     * <p>单独拆出来是因为「只重绘新范围」的缺陷在步长较大时才会露馅：
-     * 诗句每帧左移一点，右侧就让出一点，那一点只要没被重绘就会留在屏上。
+     * 诗句每帧左移一点，右侧就让出一点；那一点只要没被重绘就会留在屏上。
      */
     @Test
     public void everyFrameRepaintsThePreviousHoleCompletely() {
@@ -156,7 +150,7 @@ public class OcclusionCoverageTest2 {
     /**
      * 字整段落进隧道（本帧 0 段）时，上一帧的洞仍然必须被擦掉。
      *
-     * <p>否则那个缺口会永久留在屏幕上 —— 因为之后再没有任何一帧会覆盖到它。
+     * 否则那个缺口会永久留在屏幕上 —— 因为之后再没有任何一帧会覆盖到它。
      */
     @Test
     public void zeroSegmentFrameStillErasesThePreviousHole() {
@@ -180,9 +174,9 @@ public class OcclusionCoverageTest2 {
     }
 
     /**
-     * 虫洞把句子切成两段时，一次重绘必须覆盖两段的<b>并集</b>。
+     * 虫洞把句子切成两段时，一次重绘必须覆盖两段的并集。
      *
-     * <p>分两次 invalidate 效果相同，但每次都要走一遍 ViewRootImpl 的脏区登记；
+     * 分两次 invalidate 效果相同，但每次都要走一遍 ViewRootImpl 的脏区登记；
      * 而诗句在移动，两次调用之间还可能各触发一次遍历。
      */
     @Test

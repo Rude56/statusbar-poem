@@ -10,10 +10,7 @@ import java.util.Set;
 
 /**
  * 本地诗库：内置默认诗、增删改、排序、重复检测、播放顺序。
- *
- * <p><b>升级语义（重点）</b>：内置 6 首只在「从未初始化过」时写入一次。
- * 一旦 {@code poemsSeeded=true}，无论用户删光了还是删了其中几首，
- * 后续版本都<b>不会</b>再把内置诗合并回来 —— 用户把诗库删空就必须保持为空。
+ * 内置 6 首只在首次初始化时写入一次；{@code poemsSeeded=true} 后即使诗库被删空也保持为空。
  */
 public final class PoemLibrary {
 
@@ -49,11 +46,7 @@ public final class PoemLibrary {
     }
 
     /**
-     * 首次初始化决策。
-     *
-     * @param seeded  之前是否已经初始化过（SharedPreferences 里的 poemsSeeded）
-     * @param stored  已保存的诗库 JSON（可能为 null 或 "[]"）
-     * @return 需要落盘的 JSON；已初始化过时原样返回 stored（显式空库保持 "[]"）
+     * 首次初始化决策：已初始化过则原样返回 stored（显式空库保持 "[]"），否则返回内置诗库。
      */
     public static String resolveInitial(boolean seeded, String stored) {
         if (seeded) {
@@ -79,11 +72,7 @@ public final class PoemLibrary {
         return out;
     }
 
-    /**
-     * 重复检测：以 text+author+source 的稳定 ID 为准。
-     *
-     * @param exceptId 编辑场景下排除自身 ID，可为 null
-     */
+    /** 重复检测：以 text+author+source 的稳定 ID 为准；{@code exceptId} 为编辑场景下要排除的自身 ID。 */
     public static boolean isDuplicate(List<PoemItem> list, String text, String author, String source, String exceptId) {
         String id = PoemItem.stableId(text, author, source);
         if (exceptId != null && exceptId.equals(id)) {
@@ -177,23 +166,8 @@ public final class PoemLibrary {
     }
 
     /**
-     * 在「可见的诗」之间移动一格，被过滤掉的诗<b>原地不动</b>。
-     *
-     * <p><b>为什么需要这个而不是直接换相邻下标</b>：诗库支持搜索过滤。
-     * 搜索时屏幕上只显示命中的几首，它们在整张列表里可能隔着几十首看不见的诗。
-     * 若按整表下标交换，用户拖动时屏幕上毫无变化，实际却在和隐藏的诗换位 ——
-     * 松手后顺序已经错了，而且完全无法察觉。
-     *
-     * <p>做法：从当前位置沿 {@code step} 方向找下一首<b>可见</b>的诗，
-     * 与它<b>交换位置</b>。用交换而不是「删除再插入」是刻意的：
-     * 交换时被跨过的隐藏诗一个字节都不动；删除再插入会让它们整体平移一格，
-     * 用户下次清空搜索就会发现顺序莫名其妙变了。
-     *
-     * @param list    待修改的列表（原地修改）
-     * @param id      要移动的诗
-     * @param visible 当前可见（未被搜索过滤掉）的诗 id 集合
-     * @param step    -1 上移一格，+1 下移一格
-     * @return 是否真的移动了
+     * 在「可见的诗」之间移动一格，被搜索过滤掉的诗原地不动（{@code step}：-1 上移，+1 下移）。
+     * 必须用 swap 而不是 remove+insert：交换时被跨过的隐藏诗一个字节都不动，删除再插入会让它们整体平移。
      */
     public static boolean moveAmongVisible(List<PoemItem> list, String id,
                                            Set<String> visible, int step) {

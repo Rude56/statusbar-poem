@@ -15,24 +15,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 前台应用跟踪（白名单用）。
- *
- * <p>省电做法：注册 SystemUI 本来就会用的 {@code ITaskStackListener}，
- * 只在任务栈真正变化时回调一次，不做周期轮询。
- * 注册失败才退回「白名单非空 + 只在开启时才跑」的低频兜底轮询。
- *
- * <p><b>为什么解析前台包名要写这么多候选</b>：{@code ActivityTaskManager.getTasks}
- * 的签名在版本之间反复变过（`(int)` / `(int, boolean)` /
- * `(int, boolean, boolean)` / `(int, boolean, boolean, int)`），
- * 写死某一个重载在部分 ROM 上会直接 {@code NoSuchMethodException}，
- * 而 {@code ActivityManager.getRunningTasks} 对非自家进程又常常返回空表 ——
- * 两条路一起失败时 `topPackage()` 返回空串，白名单<b>静默失效</b>
- * （表现为「加了白名单应用、在那儿也照滚」）。
- *
- * <p>所以这里改成：把服务上所有叫 {@code getTasks} 的方法都试一遍，
- * 再补 {@code getFocusedRootTaskInfo} / {@code getAllRootTaskInfos}，
- * 最后才退回 {@code getRunningTasks}。任何一个成功就返回。
- * 全部失败会打一条诊断日志，而不是什么都不说。
+ * 前台应用跟踪（白名单用）：注册 {@code ITaskStackListener}，只在任务栈变化时回调一次；
+ * 注册失败才退回「白名单非空 + 屏幕亮着」时的低频兜底轮询。
  */
 final class ForegroundTracker {
 
@@ -100,15 +84,9 @@ final class ForegroundTracker {
     /**
      * 开始跟踪。
      *
-     * <p><b>白名单启用时始终保留一个低频兜底轮询</b>，即便任务栈监听注册成功。
-     *
-     * <p>原因是实测教训：本机 ROM 上 {@code registerTaskStackListener} 会返回成功，
-     * 但回调<b>一次都不会来</b>（切到白名单应用后前台值一直停在启动时的那个包名）。
-     * 只信事件会让白名单「注册成功但完全失效」，且没有任何报错。
-     *
-     * <p>代价可控：轮询跑在后台线程，一次只是几次反射读字段；
-     * 而且只在<b>白名单非空</b>时才启动 —— 用户没配白名单就零开销。
-     * 任务栈监听仍然保留，它让常见场景（切应用）响应更快。
+     * 白名单启用时始终保留一个低频兜底轮询，即便任务栈监听注册成功：
+     * 部分 ROM 上 {@code registerTaskStackListener} 返回成功但回调一次都不来，
+     * 只信事件会让白名单「注册成功但完全失效」且无任何报错。
      *
      * @param whitelistActive 白名单是否非空；为空时完全不轮询
      */
@@ -132,9 +110,7 @@ final class ForegroundTracker {
     /**
      * 开关兜底轮询。
      *
-     * <p>单独拆出来是为了让「熄屏」也能把它停掉：以前轮询只跟白名单是否非空有关，
-     * 于是<b>熄屏以后仍然每 5 秒</b>去 {@code ActivityTaskManager} 反射查一次前台应用 ——
-     * 屏幕都黑了，前台是谁毫无意义，这是纯浪费的唤醒。
+     * 拆出来是为了让熄屏也能停掉：熄屏后前台是谁毫无意义，轮询只是纯浪费的唤醒。
      *
      * @param active true 表示现在需要轮询
      */
@@ -146,7 +122,7 @@ final class ForegroundTracker {
         }
     }
 
-    /** 当前是否应该轮询：白名单非空<b>且</b>屏幕亮着。 */
+    /** 当前是否应该轮询：白名单非空且屏幕亮着。 */
     void syncPolling(boolean screenInteractive) {
         setPolling(whitelistActive && screenInteractive);
     }
@@ -159,11 +135,9 @@ final class ForegroundTracker {
     /**
      * 刷新前台包名。
      *
-     * <p><b>节流不能丢状态</b>：任务栈监听的回调在事件后 250ms 触发，而节流窗口
-     * 是 400ms —— 如果上一次刷新刚过去 250ms，这次就会被直接丢掉，
-     * 而且<b>没人会再补一次</b>。结果是前台停在一个过时的值上，
-     * 白名单看起来「完全不生效」。所以被节流挡住时必须记下「还有一个待刷新」，
-     * 到窗口结束后立刻补跑。
+     * 节流不能丢状态：任务栈监听的回调在事件后 250ms 触发，而节流窗口是 400ms，
+     * 被直接丢掉就没人再补一次，前台会停在过时的值上导致白名单看起来不生效。
+     * 所以被节流挡住时必须记下「还有一个待刷新」，窗口结束后立刻补跑。
      */
     void refreshAsync() {
         if (pendingRefresh) {
@@ -215,7 +189,9 @@ final class ForegroundTracker {
     /**
      * 解析当前前台包名；所有候选都失败时返回空串。
      *
-     * <p>每个候选都单独 try/catch：某个重载不存在只影响它自己，不影响后面。
+     * 依次尝试 {@code getTasks} 的全部重载 → {@code getFocusedRootTaskInfo} /
+     * {@code getAllRootTaskInfos} → {@code getRunningTasks}。签名跨版本变过，写死某个重载
+     * 在部分 ROM 上会 {@code NoSuchMethodException}；每个候选单独 try/catch。
      */
     private String topPackage() {
         String pkg = fromActivityTaskManager();
@@ -253,9 +229,8 @@ final class ForegroundTracker {
         }
         // 2) getTasks 的所有重载：签名逐版本变过，别写死。
         //
-        // getMethods() 每次都会新建一个 Method[]（几十个元素）并克隆每个参数的
-        // 类型数组。以前这里是<b>每 5 秒</b>跑一遍，24 小时几万次反射枚举 ——
-        // 全是可缓存的常量。服务类在整个进程生命周期里不会变，缓存一次即可。
+        // getMethods() 每次都会新建 Method[] 并克隆参数类型数组，服务类在进程生命周期里
+        // 不变，所以缓存一次即可，避免每次刷新都做反射枚举。
         for (Method m : taskMethods(service)) {
             try {
                 Object tasks = m.invoke(service, defaultArgs(m.getParameterTypes()));
@@ -324,10 +299,8 @@ final class ForegroundTracker {
     }
 
     /**
-     * ATM 服务上所有 {@code getTasks} 重载（缓存）。
-     *
-     * <p>反射枚举 {@code getMethods()} 会分配一个 Method 数组 ——
-     * 以前每 5 秒一次。服务类是进程级单例，这份列表一辈子都不用重算。
+     * ATM 服务上所有 {@code getTasks} 重载（缓存）：反射枚举 {@code getMethods()} 会分配
+     * Method 数组，而服务类是进程级单例，这份列表一辈子都不用重算。
      */
     private static Method[] taskMethodsCache;
 
@@ -406,7 +379,7 @@ final class ForegroundTracker {
     /**
      * 从一个任务信息对象里抠出包名。
      *
-     * <p>字段名在不同版本里叫 {@code topActivity} / {@code baseActivity} /
+     * 字段名在不同版本里叫 {@code topActivity} / {@code baseActivity} /
      * {@code realActivity}，有些版本只有 {@code getTopActivity()} 方法。
      */
     private static String packageOf(Object info) {

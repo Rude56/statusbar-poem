@@ -7,13 +7,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 熔断器的行为。
+ * 熔断器的行为：连续失败 {@code MAX_FAIL} 次后熔断，之后低频试探自愈。
  *
- * <p><b>这里必须是行为断言，不能是源码字符串断言。</b>
- * 这个类以前的 bug 是「连续失败 3 次后<b>永久</b>禁用」，
- * 而 {@code reset()} / {@code resetAll()} 在生产代码里一次都没被调用过 ——
- * 结果遮挡偶发抛 3 次异常后整个进程内永久失效，且完全静默。
- * 这种 bug 只有真正调用 API 才能测出来，读源码是看不出来的。
+ * 必须是行为断言：只读源码看不出 {@code reset()} 有没有被调用过。
  */
 public class FeatureGuardTest {
 
@@ -40,11 +36,10 @@ public class FeatureGuardTest {
     }
 
     /**
-     * 熔断后必须能自愈 —— 这是这次修复的核心。
+     * 熔断后必须能自愈。
      *
-     * <p>「一次成功就复位」不行（那样熔断形同虚设，失败态会反复执行）；
-     * 「永不恢复」正是原来的 bug。正确做法是低频试探：
-     * 试探成功后计数清零、重新放行。
+     * 「一次成功就复位」会让熔断形同虚设；「永不恢复」会让偶发异常永久失效。
+     * 正确做法是低频试探：试探成功后计数清零、重新放行。
      */
     @Test
     public void fusedFeatureRecoversOnProbe() {
@@ -134,8 +129,7 @@ public class FeatureGuardTest {
     /**
      * 未熔断时快路径不得写 Map（省电约束）。
      *
-     * <p>{@code guardFast} 每帧被调 30 次；如果成功路径上有
-     * {@code HashMap.remove}，那就是每秒 30 次无谓写入。
+     * {@code guardFast} 每帧被调 30 次，成功路径上任何 Map 写入都是每秒 30 次无谓开销。
      * 这里用「成功若干次后 failCount 仍为 0」间接验证它没走 recordFailure，
      * 并用 {@code disabledIds()} 为空确认没做任何标记。
      */

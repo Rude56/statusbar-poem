@@ -1,31 +1,20 @@
-﻿# 运行全部 JVM 单元测试
+# 运行全部 JVM 单元测试
+#
+# 前置条件同 build.ps1。
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
-# 工具链可能放在项目内（.toolchain）或工作区上层，自动向上查找。
-function Find-Toolchain([string]$start) {
-    $dir = $start
-    for ($i = 0; $i -lt 4 -and $dir; $i++) {
-        $cand = Join-Path $dir '.toolchain'
-        if (Test-Path (Join-Path $cand 'gradle\gradle-9.6.0\bin\gradle.bat')) { return $cand }
-        $parent = Split-Path $dir -Parent
-        if ($parent -eq $dir) { break }
-        $dir = $parent
-    }
-    throw "未找到 .toolchain（请先运行 scripts/bootstrap.ps1）"
+if (-not $env:JAVA_HOME) { throw "请先设置 JAVA_HOME 指向 JDK 21" }
+if (-not $env:ANDROID_HOME -and -not (Test-Path (Join-Path $root 'local.properties'))) {
+    throw "请设置 ANDROID_HOME，或在 local.properties 里写 sdk.dir"
 }
-$tc = Find-Toolchain $root
 
-$env:JAVA_HOME = (Get-ChildItem (Join-Path $tc 'jdk') -Directory | Select-Object -First 1).FullName
-$env:ANDROID_HOME = Join-Path $tc 'sdk'
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:ANDROID_USER_HOME = Join-Path $tc 'android-home'
-$env:GRADLE_USER_HOME = Join-Path $tc 'gradle-home'
+$gradlew = Join-Path $root 'gradlew.bat'
+if (-not (Test-Path $gradlew)) { throw "缺少 gradlew.bat" }
 
-$gradle = Join-Path $tc 'gradle\gradle-9.6.0\bin\gradle.bat'
 Push-Location $root
 try {
-    & $gradle :app:testDebugUnitTest --stacktrace --no-daemon
+    & $gradlew :app:testDebugUnitTest --no-daemon
     $code = $LASTEXITCODE
 } finally {
     Pop-Location

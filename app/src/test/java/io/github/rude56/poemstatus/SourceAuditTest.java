@@ -16,10 +16,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * 省电与结构审计。
- *
- * <p>这些用例直接读源码文本做断言，把「性能/省电」这种容易被后续修改悄悄破坏的约束
- * 变成会失败的测试 —— 而不是只写在 README 里。
+ * 省电与结构约束：直接读源码文本做断言，把「性能/省电」这类容易被后续修改悄悄破坏的约束
+ * 变成会失败的测试，而不是只写在 README 里。
  */
 public class SourceAuditTest {
 
@@ -156,7 +154,7 @@ public class SourceAuditTest {
     public void entryTitleAndSecondaryPageTitleExist() throws IOException {
         String strings = read(new File(RES, "values/strings.xml"));
         assertTrue("缺少古诗库页面标题", strings.contains("古诗库"));
-        // 新结构：古诗库是一级 tab，不再是主页上的二级入口。
+        // 古诗库是一级 tab。
         String app = source("ui/PoemApp.kt");
         assertTrue("古诗库必须是一级 tab", app.contains("LIBRARY(R.string.tab_library)"));
         assertTrue("古诗库页面必须被渲染", app.contains("Tab.LIBRARY -> LibraryScreen"));
@@ -165,7 +163,7 @@ public class SourceAuditTest {
     /**
      * 导航必须严格两层：一级 = 底部导航的三个 tab，二级 = 压栈的详情页。
      *
-     * <p>这条约束容易被后续改动破坏（例如随手把某个页面塞进 tab 里，
+     * 这条约束容易被后续改动破坏（例如随手把某个页面塞进 tab 里，
      * 或者让二级页也显示底部栏），所以用测试钉住。
      */
     @Test
@@ -204,22 +202,22 @@ public class SourceAuditTest {
         String activity = source("MainActivity.kt");
         assertTrue("MainActivity 必须使用 PoemTheme", activity.contains("PoemTheme {"));
         assertTrue("必须边到边显示", activity.contains("enableEdgeToEdge"));
-        assertFalse("不得再使用裸 MaterialTheme 包一层", activity.contains("MaterialTheme {"));
+        assertFalse("不得使用裸 MaterialTheme 包一层", activity.contains("MaterialTheme {"));
     }
 
     /**
      * 概览页只保留主开关 + 连接自检 + 配置速览。
      *
-     * <p>这条测试同时防止两件事：① 有人把删掉的预览又加回来；
+     * 这条测试同时防止两件事：① 有人把预览又加回来；
      * ② 概览页重新长成一堆入口卡片，把「一眼看清开没开」这件事冲淡。
      */
     @Test
     public void overviewIsJustTheMasterSwitch() throws IOException {
         String overview = source("ui/OverviewScreen.kt");
         assertTrue("必须有主开关卡片", overview.contains("MasterCard("));
-        assertFalse("状态栏效果预览已删除", overview.contains("StatusBarStrip("));
-        assertFalse("快捷入口已删除", overview.contains("NavRow("));
-        assertFalse("不得再引用快捷入口文案", overview.contains("overview_shortcuts"));
+        assertFalse("不得有状态栏效果预览", overview.contains("StatusBarStrip("));
+        assertFalse("不得有快捷入口", overview.contains("NavRow("));
+        assertFalse("不得引用快捷入口文案", overview.contains("overview_shortcuts"));
         // 首次引导保留：开关关着时告诉用户下一步做什么。
         assertTrue("首次使用必须有引导", overview.contains("overview_getting_started"));
         assertTrue("引导必须只在关闭时出现", overview.contains("if (!cfg.enabled)"));
@@ -233,11 +231,11 @@ public class SourceAuditTest {
     /**
      * LSPosed 连接自检必须真的能判断「模块有没有生效」。
      *
-     * <p>原理：注入成功的 SystemUI 每 2 秒会来 {@code ConfigProvider} 读一次配置。
+     * 原理：注入成功的 SystemUI 每 2 秒会来 {@code ConfigProvider} 读一次配置。
      * 所以「最后一次被 SystemUI 调用的时间」就是唯一的活性信号 ——
      * 模块没启用 / 作用域没勾 / 没重启 SystemUI，这个时间戳永远不会刷新。
      *
-     * <p>关键约束：只认<b>调用方确实是 SystemUI</b> 的调用。
+     * 关键约束：只认调用方确实是 SystemUI 的调用。
      * 否则 App 自己的诊断调用会把「未连接」误判成「已连接」。
      */
     @Test
@@ -264,16 +262,11 @@ public class SourceAuditTest {
     }
 
     /**
-     * 作用域必须是<b>静态</b>的，且只含 SystemUI。
+     * 作用域必须是静态的，且只含 SystemUI。
      *
-     * <p>这是本次从旧 API 迁到现代 libxposed API 的<b>唯一动机</b>：
-     * 旧模块的 {@code xposedscope} 只是一个「建议列表」，用户可以随手把模块
+     * legacy 的 {@code xposedscope} 只是一个「建议列表」，用户可以随手把模块
      * 勾到任意应用上；现代模块的 {@code module.prop} 里
      * {@code staticScope=true} 才是框架层面拒绝越界的声明。
-     *
-     * <p>以前这条测试读的是 {@code res/values/arrays.xml} 里的
-     * {@code xposed_scope} 数组 —— 它只能证明「我们写了个列表」，
-     * 完全无法证明「用户改不了它」。
      */
     @Test
     public void moduleDeclaresStaticScopeWithSystemUiOnly() throws IOException {
@@ -304,21 +297,22 @@ public class SourceAuditTest {
                 read(initFile).trim().endsWith("ModuleMain"));
     }
 
-    /** 旧模块声明必须清干净，否则 LSPosed 会把它当 legacy 模块处理（staticScope 无效）。 */
+    /** legacy 模块声明必须清干净，否则 LSPosed 会把它当 legacy 模块处理（staticScope 无效）。 */
     @Test
     public void legacyModuleDeclarationIsGone() throws IOException {
         String manifest = read(MANIFEST);
         // 断言的是「声明」，不是「这个词」—— 注释里提到旧名字是合理的。
-        assertFalse("不得再声明 xposedmodule",
+        assertFalse("不得声明 xposedmodule",
                 manifest.contains("android:name=\"xposedmodule\""));
-        assertFalse("不得再声明 xposedscope",
+        assertFalse("不得声明 xposedscope",
                 manifest.contains("android:name=\"xposedscope\""));
-        assertFalse("不得再声明 xposedminversion",
+        assertFalse("不得声明 xposedminversion",
                 manifest.contains("android:name=\"xposedminversion\""));
-        assertFalse("不得再有旧作用域数组",
+        assertFalse("不得有旧作用域数组",
                 new File(RES, "values/arrays.xml").isFile());
-        assertFalse("旧入口类必须已删除", new File(MAIN, "XposedInit.java").isFile());
-        assertFalse("旧入口清单必须已删除",
+        assertFalse("入口类必须是 ModuleMain，不得有 XposedInit",
+                new File(MAIN, "XposedInit.java").isFile());
+        assertFalse("入口清单必须是 META-INF/xposed/java_init.list",
                 new File("src/main/assets/xposed_init").isFile());
     }
 
@@ -346,9 +340,8 @@ public class SourceAuditTest {
     /**
      * 现代入口只处理 SystemUI。
      *
-     * <p>现代 API 的入口是 {@link io.github.rude56.poemstatus.ModuleMain}：
-     * 它在 {@code onPackageReady} 里按包名过滤，而不是旧 API 的
-     * {@code handleLoadPackage} + {@code lpparam.packageName}。
+     * 入口是 {@link io.github.rude56.poemstatus.ModuleMain}：它在 {@code onPackageReady}
+     * 里按包名过滤，而不是 legacy API 的 {@code handleLoadPackage} + {@code lpparam.packageName}。
      */
     @Test
     public void moduleEntryOnlyHandlesSystemUi() throws IOException {
@@ -357,10 +350,10 @@ public class SourceAuditTest {
                 text.contains("FeatureAudit.SCOPE_PACKAGE.equals(param.getPackageName())"));
         assertTrue("必须打 INJECTED 日志", text.contains("INJECTED process="));
         assertTrue("必须继承现代入口基类", text.contains("extends XposedModule"));
-        // 旧 API 不能被残留：现代模块（targetApiVersion>=102）根本不允许调用旧 API。
+        // legacy API 不得残留：现代模块（targetApiVersion>=102）根本不允许调用它。
         for (String f : new String[]{"ModuleMain.java", "SystemUiController.java"}) {
             String s = source(f);
-            assertFalse(f + " 不得再引用旧 API",
+            assertFalse(f + " 不得引用 legacy API",
                     s.contains("de.robv.android.xposed") || s.contains("XposedHelpers")
                             || s.contains("XC_MethodHook"));
         }
@@ -389,34 +382,25 @@ public class SourceAuditTest {
     }
 
     /**
-     * 旧的「逐个 View 改 alpha」遮挡方案已整体删除。
+     * 遮挡只有「挖洞」一种方式：{@link HolePuncher} 的一次性画布裁剪。
      *
-     * <p>删除理由（不是图省事）：
-     * <ol>
-     *   <li>它在 Compose 化的状态栏上<b>根本无效</b> —— 改 ComposeView 的 alpha
-     *       会让图标「闪一下就回来」，改不了已经提交的绘制内容；</li>
-     *   <li>它是一条永不执行的死分支（{@code OcclusionMode.USE_HOLE} 恒为 true），
-     *       既没法测，也没法在真机上验证；</li>
-     *   <li>它和挖洞方案互相打架：两套都在动状态栏的绘制状态，只在测试里覆着。</li>
-     * </ol>
-     *
-     * <p>现在唯一的遮挡方式就是 {@link HolePuncher} 的一次性画布裁剪。
-     * 真需要那种「只藏图标不藏时钟」的粒度时，从 git 历史恢复比长期维护死代码更快。
+     * 逐个 View 改 alpha 在 Compose 化的状态栏上无效 —— 改 ComposeView 的 alpha
+     * 会让图标闪一下就回来，改不了已经提交的绘制内容；两套方案并存还会互相打架。
      */
     @Test
     public void alphaOcclusionSchemeIsGone() throws IOException {
-        assertFalse("旧方案类必须已删除", new File(MAIN, "ModuleOccluder.java").isFile());
-        assertFalse("模式开关必须已删除", new File(MAIN, "OcclusionMode.java").isFile());
-        assertFalse("只被旧方案使用的规划器必须已删除",
+        assertFalse("不得有 alpha 遮挡方案类", new File(MAIN, "ModuleOccluder.java").isFile());
+        assertFalse("不得有模式开关", new File(MAIN, "OcclusionMode.java").isFile());
+        assertFalse("不得有 alpha 方案专用的规划器",
                 new File(MAIN, "OcclusionPlanner.java").isFile());
-        // 任何地方都不得再引用它们。
+        // 任何地方都不得引用它们。
         for (String f : new String[]{"PoemRuntime.java", "SystemUiController.java",
                 "ColorSampler.java", "HolePuncher.java"}) {
             String text = source(f);
-            assertFalse(f + " 不得再引用 ModuleOccluder", text.contains("ModuleOccluder"));
-            assertFalse(f + " 不得再引用 OcclusionMode", text.contains("OcclusionMode"));
+            assertFalse(f + " 不得引用 ModuleOccluder", text.contains("ModuleOccluder"));
+            assertFalse(f + " 不得引用 OcclusionMode", text.contains("OcclusionMode"));
         }
-        // 帧内也不允许再出现任何 alpha 写入。
+        // 帧内也不允许出现任何 alpha 写入。
         String runtime = source("PoemRuntime.java");
         assertFalse("诗句层不得改别人 alpha", runtime.contains("setAlpha"));
     }
@@ -428,16 +412,16 @@ public class SourceAuditTest {
         // 核心机制：在内容根的画布上挖洞，clip 随 save/restore 传给所有子孙。
         assertTrue("必须用 clipOutRect 挖洞", hole.contains("clipOutRect"));
         // save/restore 必须成对，且必须走「栈」而不是单一计数：
-        // View.draw 被重入时，单一计数会被内层抹掉，导致画布裁剪永久残留。
+        // View.draw 被重入时，单一计数会被内层抹掉，画布裁剪会永久残留。
         assertTrue("必须用 ClipStack 管理 save/restore", hole.contains("ClipStack"));
         assertTrue("必须 restoreToCount 到本层保存点", hole.contains("restoreToCount"));
-        // 不得再退回单一计数：只检查<b>代码</b>，注释里提到旧实现是合理的。
+        // 单一计数不得出现在代码里（注释里提到旧实现是合理的）。
         for (String line : hole.split("\n")) {
             String code = line.trim();
             if (code.startsWith("*") || code.startsWith("//") || code.startsWith("/*")) {
                 continue;
             }
-            assertFalse("不得再退回单一计数: " + code, code.contains("savedClips"));
+            assertFalse("不得退回单一计数: " + code, code.contains("savedClips"));
         }
         // 必须只在绑定的内容根上挖，不能挖到诗句层自己。
         assertTrue("必须校验目标就是内容根", hole.contains("view != root"));
@@ -479,16 +463,10 @@ public class SourceAuditTest {
     }
 
     /**
-     * 虫洞位移只能算<b>一次</b>，而且只能算在一个地方。
+     * 虫洞位移只能算一次，而且只能算在一个地方。
      *
-     * <p>历史教训：{@code onFrame} 先换算成屏幕位置、{@code updateOcclusion}
-     * 又换算一次 → 洞宽被减两遍，遮挡比文字提前一个洞宽（「字还没到就遮住了」）。
-     * 反之两边都不换算 → 遮挡滞后一个洞宽。
-     *
-     * <p>现在的做法更彻底：分段在 {@code updateFrame} 里算一次，
-     * 绘制层与遮挡层<b>共用同一份结果</b>。以前是两层各调一次
-     * {@code wormholeSegments}，等于每帧做两次完全相同的全洞扫描。
-     * 所以这里断言的是「全文件只有一处调用」。
+     * 分段在 {@code updateFrame} 里算一次，绘制层与遮挡层共用同一份结果 ——
+     * 两层各调一次等于每帧做两次完全相同的全洞扫描。所以这里断言「全文件只有一处调用」。
      */
     @Test
     public void wormholeSegmentsAreComputedExactlyOnce() throws IOException {
@@ -517,8 +495,8 @@ public class SourceAuditTest {
         assertFalse("帧内不得调用任何洞位移函数", frame.contains("shiftForWormhole"));
         assertFalse(frame.contains("wormholeShift"));
         assertFalse("帧内不得引用 HolePuncher", frame.contains("HolePuncher"));
-        // 改写函数必须已从 HolePuncher 中删除。
-        assertFalse("位移函数应已移除",
+        // 位移函数必须已从 HolePuncher 中移除。
+        assertFalse("位移函数应不存在",
                 source("HolePuncher.java").contains("static float shiftForWormhole"));
     }
 
@@ -545,8 +523,8 @@ public class SourceAuditTest {
         String begin = bodyOf(hole, "static boolean beginClip(Canvas canvas, View view)");
         assertTrue("必须按可见分段挖", begin.contains("segLeft[i]"));
         assertFalse("不得直接按用户洞列表挖", begin.contains("holes.get(i)"));
-        // 位移函数必须已彻底移除。
-        assertFalse("位移函数应已删除", hole.contains("shiftForWormhole"));
+        // 位移函数必须彻底不存在。
+        assertFalse("位移函数应不存在", hole.contains("shiftForWormhole"));
     }
 
     @Test
@@ -554,12 +532,12 @@ public class SourceAuditTest {
         // 隧道里的字看不见，那段屏幕不该再遮挡状态栏内容。
         // 否则会出现「诗进了隧道看不见，图标却还被挖掉一块」。
         //
-        // 遮挡分段现在整体搬到 HoleRects.visibleSegments（纯函数，可逐帧验证），
+        // 遮挡分段整体在 HoleRects.visibleSegments（纯函数，可逐帧验证），
         // 所以这里钉的是「运行时确实走那条路」，减法细节在 HoleRects 里校验。
         String rt = source("PoemRuntime.java");
         String upd = bodyOf(rt, "void updateOcclusion(float l, float t, float r, float b)");
         assertTrue("遮挡必须走 visibleSegments", upd.contains("HoleRects.visibleSegments"));
-        // 运行时不得再自己内联一套分段/减法（那正是上一个 bug 的所在）。
+        // 运行时不得自己内联一套分段/减法。
         assertFalse("运行时不得重算隧道减法", upd.contains("subtractTunnels"));
         // 坐标契约：必须把诗句层的屏幕原点交出去。
         assertTrue("必须使用诗句层屏幕原点", upd.contains("screenOriginX"));
@@ -577,24 +555,11 @@ public class SourceAuditTest {
     }
 
     /**
-     * 状态栏上的框：只在「洞设置页」显示，且离开页面必须自动关闭。
+     * 状态栏上的框由 App 自己绘制，只在洞页出现。
      *
-     * <p>约束来自两次真实事故：框常驻状态栏、框闪现。
-     * 根因都是「靠 SystemUI 进程判断 App 是否前台」不可靠。
-     * 现在的做法是 App 侧用 {@code DisposableEffect} 在页面销毁时把标志复位，
-     * 跨进程只传一个布尔值，不依赖任何前台判断。
-     */
-    /**
-     * 状态栏上的框：由 <b>App 自己绘制</b>，只在洞页出现。
-     *
-     * <p>这条测试记录了三次失败的尝试，防止再走回头路：
-     * <ol>
-     *   <li>第一版让 SystemUI 判断「App 是否前台」→ 判断不可靠，框闪现/常驻；</li>
-     *   <li>第二版改成 App 写 {@code cutoutPreview} 标志 → 标志写进去了、
-     *       SystemUI 也读到新配置了，但预览层就是挂不上（日志里只有 CONF apply）；</li>
-     *   <li>第三版（现在）：App 自己是 edge-to-edge 全屏的，窗口本来就延伸到
-     *       状态栏下面，直接在 y=0..状态栏高度 画框即可。零跨进程、零延迟。</li>
-     * </ol>
+     * App 自己是 edge-to-edge 全屏的，窗口本来就延伸到状态栏下面，
+     * 直接在 y=0..状态栏高度 画框即可：零跨进程、零延迟。
+     * 靠 SystemUI 进程判断 App 是否前台不可靠（框会闪现/常驻）。
      */
     @Test
     public void holeFramesAreDrawnByTheAppItself() throws IOException {
@@ -613,12 +578,12 @@ public class SourceAuditTest {
         assertTrue("洞编辑页也必须显示框", app.contains("current is Detail.HoleEdit"));
         assertTrue("必须调用 HoleFrameOverlay", app.contains("HoleFrameOverlay("));
 
-        // 不再依赖 SystemUI 的预览层。
+        // 不依赖 SystemUI 的预览层。
         String ctl = source("SystemUiController.java");
-        assertFalse("不得再靠 App 是否前台来判断", ctl.contains("isSelfForeground"));
+        assertFalse("不得靠 App 是否前台来判断", ctl.contains("isSelfForeground"));
         String cutout = source("ui/CutoutScreen.kt");
-        assertFalse("不得再写 cutoutPreview 标志", cutout.contains("cutoutPreview = true"));
-        assertFalse("不得再有「在状态栏显示框」开关", cutout.contains("R.string.hole_show_on_status_bar"));
+        assertFalse("不得写 cutoutPreview 标志", cutout.contains("cutoutPreview = true"));
+        assertFalse("不得有「在状态栏显示框」开关", cutout.contains("R.string.hole_show_on_status_bar"));
     }
 
     /** 洞页的两种穿越方式必须是两个固定样例（位置写死、可对照）。 */
@@ -642,25 +607,18 @@ public class SourceAuditTest {
     }
 
     /**
-     * 两行预览必须<b>同时</b>有古诗 —— 这是它们存在的唯一理由。
+     * 两行预览必须同时有古诗 —— 这是它们存在的唯一理由。
      *
-     * <p>这条约束极易被破坏且不会报错：只要某一行的消失点比另一行早，
+     * 这条约束极易被破坏且不会报错：只要某一行的消失点比另一行早，
      * 每轮末尾就有一段时间只剩一行有字，对比直接失效。
-     *
-     * <p>以前有两个具体缺陷：
-     * <ol>
-     *   <li>进度 {@code coerceIn(0f, 1f)} 且起点从不重置 —— 跑到 14 秒后
-     *       永久停在 progress=1，<b>两行都是空的</b>，再也没法对比；</li>
-     *   <li>循环按整条轨道 {@code [0,1]} 走，而虫洞行会提前 19% 走空 ——
-     *       每轮有 2.7 秒只有隧道行还在滚。</li>
-     * </ol>
+     * 循环必须按周期取模并收缩到 {@code cycleEnd}，不能夹取到 {@code [0,1]}。
      */
     @Test
     public void bothPreviewsAlwaysShowAPoemAtTheSameTime() throws IOException {
         String samples = source("ui/HoleModeSamples.kt");
-        // 必须按周期取模循环，不得再夹取（夹取会冻结）。
+        // 必须按周期取模循环，不能夹取（夹取会冻结）。
         assertTrue("必须用 PreviewClock 推进", samples.contains("PreviewClock.progressAt"));
-        assertFalse("不得再 coerceIn 到 [0,1]（会永久冻结在末尾）",
+        assertFalse("不得 coerceIn 到 [0,1]（会永久冻结在末尾）",
                 samples.contains("coerceIn(0f, 1f)"));
         // 循环终点必须按「两行都还有字」来算。
         assertTrue("必须用 cycleEnd 收缩循环范围", samples.contains("PreviewClock.cycleEnd"));
@@ -679,7 +637,7 @@ public class SourceAuditTest {
     /**
      * 洞页的界面必须与古诗库一致：卡片列表 + 点开进编辑页 + 滑删 + FAB。
      *
-     * <p>一致性是刻意的：用户在诗库里学到的操作方式在这里应该原样成立。
+     * 一致性是刻意的：用户在诗库里学到的操作方式在这里应该原样成立。
      */
     @Test
     public void holesPageUsesTheSameUiAsTheLibrary() throws IOException {
@@ -689,7 +647,7 @@ public class SourceAuditTest {
         assertTrue("必须支持左滑删除", cutout.contains("SwipeToDismissBox("));
         assertTrue("滑删必须先确认", cutout.contains("pendingDelete = hole"));
         assertTrue("必须有 FAB 新增", cutout.contains("ExtendedFloatingActionButton("));
-        // 列表里不再直接放输入框，全部收进编辑页。
+        // 列表里不放输入框，全部收进编辑页。
         assertFalse("列表里不得有输入框", cutout.contains("OutlinedTextField("));
         // 编辑页必须存在且避让键盘
         String edit = source("ui/HoleEditScreen.kt");
@@ -701,7 +659,7 @@ public class SourceAuditTest {
     /**
      * 新增洞不得改变已有洞的颜色。
      *
-     * <p>颜色按「槽位」存，槽位跟着洞走；新洞取当前没被占用的最小槽位。
+     * 颜色按「槽位」存，槽位跟着洞走；新洞取当前没被占用的最小槽位。
      */
     @Test
     public void addingHoleNeverRecolorsExistingOnes() throws IOException {
@@ -735,13 +693,13 @@ public class SourceAuditTest {
         assertTrue("不同洞用不同颜色", screen.contains("holeColor"));
         // 删除必须二次确认（洞是手工量出来的，误删要重新量）
         assertTrue("删除必须确认", screen.contains("R.string.hole_delete_confirm"));
-        // 清空全部按钮已按要求删除
-        assertFalse("不得再有清空全部", screen.contains("R.string.hole_clear"));
-        // 校准 Activity 已删除
-        assertFalse("校准 Activity 应已移除",
+        // 清空全部按钮不得存在
+        assertFalse("不得有清空全部", screen.contains("R.string.hole_clear"));
+        // 校准 Activity 不得存在
+        assertFalse("校准 Activity 必须不存在",
                 new File(MAIN, "CutoutCalibrationActivity.java").isFile());
         String manifest = read(MANIFEST);
-        assertFalse("Manifest 不得再声明校准 Activity",
+        assertFalse("Manifest 不得声明校准 Activity",
                 manifest.contains("CutoutCalibrationActivity"));
     }
 
@@ -751,8 +709,8 @@ public class SourceAuditTest {
         assertTrue("LazyColumn 必须使用稳定 key", library.contains("key = { _, poem -> poem.id }"));
         assertTrue("整行可点即编辑", library.contains("clickable(onClick = onEdit)"));
         assertTrue("必须有启用开关", library.contains("Switch(checked = poem.enabled"));
-        // 新增/编辑改成整页（二级页），不再是对话框 —— 键盘弹出后对话框放不下
-        assertFalse("不得再用编辑对话框", library.contains("AlertDialog(\n            onDismissRequest = { adding"));
+        // 新增/编辑是整页（二级页），不用对话框 —— 键盘弹出后对话框放不下
+        assertFalse("不得用编辑对话框", library.contains("AlertDialog(\n            onDismissRequest = { adding"));
         String edit = source("ui/PoemEditScreen.kt");
         assertTrue("编辑页必须避让键盘", edit.contains("imePadding()"));
         assertTrue("编辑页必须能删除已有诗", edit.contains("R.string.delete"));
@@ -761,7 +719,7 @@ public class SourceAuditTest {
     /**
      * 古诗库必须支持滑动删除与导入导出。
      *
-     * <p>滑动删除用 Material 3 的 {@code SwipeToDismissBox}；导入导出走
+     * 滑动删除用 Material 3 的 {@code SwipeToDismissBox}；导入导出走
      * {@code 诗句|作者|出处} 纯文本（{@link PoemTextCodec}）。
      */
     @Test
@@ -789,12 +747,12 @@ public class SourceAuditTest {
     public void overlayRemovalHappensOnEveryExitPath() throws IOException {
         String text = source("PoemRuntime.java");
         String stop = bodyOf(text, "void stop()");
-        // 诗句层现在是复用的：停止只清文字、停帧、清洞，
-        // 不再每首 add/removeView（那会触发整棵状态栏重新布局）。
+        // 诗句层是复用的：停止只清文字、停帧、清洞，
+        // 不每首 add/removeView（那会触发整棵状态栏重新布局）。
         assertTrue("必须停帧", stop.contains("stopFrame()"));
         assertTrue("必须清掉画布上的洞", stop.contains("HolePuncher.clear()"));
         assertTrue("必须把文字清掉，否则会留在屏幕上", stop.contains("clearText()"));
-        assertFalse("不得再每首移除 Overlay（会触发整条状态栏重新布局）",
+        assertFalse("不得每首移除 Overlay（会触发整条状态栏重新布局）",
                 stop.contains("removeOverlay()"));
     }
 
@@ -842,13 +800,13 @@ public class SourceAuditTest {
         assertTrue("速度默认 120", config.contains("SPEED_DEFAULT = 120"));
     }
 
-    // ---------------------------------------------------------------- 本轮修复的回归防线
+    // ---------------------------------------------------------------- 回归防线
 
     /**
      * 搜索过滤后拖动排序，必须只在「可见的诗」之间换位。
      *
-     * <p>这条曾经是真 bug：显示的是过滤后的列表，换位却按整表下标算 ——
-     * 搜索状态下长按拖动，屏幕上一动不动，实际却在和看不见的诗悄悄换位。
+     * 显示的是过滤后的列表，换位若按整表下标算 —— 搜索状态下长按拖动，
+     * 屏幕上一动不动，实际却在和看不见的诗悄悄换位。
      * 行为断言在 {@code PoemLibraryTest.moveAmongVisibleSkipsFilteredOutPoems}，
      * 这里再钉住接线：拖动必须走那个函数，不能退回整表下标。
      */
@@ -860,7 +818,7 @@ public class SourceAuditTest {
         assertTrue("必须把可见 id 集合算出来", library.contains("val visibleIds = remember(filtered)"));
         // 序号必须取整表下标：搜索时若从 1 重新编号，第 47 首会显示成「1」。
         assertTrue("序号必须来自整表下标", library.contains("val displayIndex = indexById[poem.id]"));
-        assertFalse("不得再用过滤后的下标当序号",
+        assertFalse("不得用过滤后的下标当序号",
                 library.contains("index = index,"));
 
         // 真正的算法必须在可单测的 Java 层，而不是留在 Composable 里。
@@ -873,8 +831,6 @@ public class SourceAuditTest {
 
     /**
      * 导入必须能从文件读，和「导出到文件」形成闭环。
-     *
-     * <p>以前只有导出走 SAF、导入只能粘贴，导出的 .txt 想导回来只能靠剪贴板中转。
      */
     @Test
     public void importAndExportBothUseTheSystemFilePicker() throws IOException {
@@ -888,12 +844,12 @@ public class SourceAuditTest {
         assertTrue("写文件必须走 contentResolver", library.contains("contentResolver.openOutputStream"));
         // 读盘/写盘不能压在主线程上。
         assertTrue("文件读写必须在 IO 线程", library.contains("withContext(Dispatchers.IO)"));
-        // 老的静态槽位方案必须彻底删除，避免两套并存。
+        // 静态槽位方案不得存在，避免两套并存。
         assertFalse("不得残留 PendingExport 静态槽位", library.contains("object PendingExport"));
         assertFalse("不得残留 startActivityForResult",
                 library.contains("startActivityForResult"));
         String activity = source("MainActivity.kt");
-        assertFalse("MainActivity 不得再覆写 onActivityResult",
+        assertFalse("MainActivity 不得覆写 onActivityResult",
                 activity.contains("onActivityResult"));
     }
 
@@ -924,14 +880,14 @@ public class SourceAuditTest {
         assertTrue("必须用 listSaver 编码", app.contains("listSaver("));
         assertTrue("Detail 必须能编码", app.contains("fun encode(): String"));
         assertTrue("Detail 必须能解码", app.contains("fun decode(s: String): Detail?"));
-        // 解码必须容错：旧版本存下的栈不能把页面打崩。
+        // 解码必须容错：未知编码不能把页面打崩。
         assertTrue("未知编码必须返回 null", app.contains("else -> null"));
     }
 
     /**
      * 排序必须有「长按拖动」之外的第二条路。
      *
-     * <p>长按拖动对读屏用户不可用（触摸被朗读接管），只给拖动等于把无障碍用户排除在外。
+     * 长按拖动对读屏用户不可用（触摸被朗读接管），只给拖动等于把无障碍用户排除在外。
      */
     @Test
     public void reorderIsReachableWithoutDragging() throws IOException {
@@ -974,8 +930,8 @@ public class SourceAuditTest {
     /**
      * 字符串资源里不得留下没人用的死条目。
      *
-     * <p>死资源不影响体积（R8 会连引用一起删），但会让下次改代码的人
-     * 误以为还有那个功能 —— 概览页的旧预览条就是这么留下来的。
+     * 死资源不影响体积（R8 会连引用一起删），但会让下次改代码的人
+     * 误以为还有那个功能。
      */
     @Test
     public void noDeadStringResources() throws IOException {
@@ -1026,8 +982,7 @@ public class SourceAuditTest {
     /**
      * 界面文案必须说人话：不出现只有开发者才懂的术语。
      *
-     * <p>用户明确要求「小白一眼能看懂」。这里只拦最容易复发的几个词 ——
-     * 它们在早期版本里大量出现在副标题上。
+     * 这里只拦最容易复发的几个词。
      */
     @Test
     public void userFacingCopyAvoidsDeveloperJargon() throws IOException {

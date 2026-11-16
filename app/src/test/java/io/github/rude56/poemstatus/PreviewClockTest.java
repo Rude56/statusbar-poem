@@ -8,19 +8,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 洞页两行预览必须<b>同时</b>有古诗。
+ * 洞页两行预览必须同时有古诗。
  *
- * <p>这是两个样例存在的唯一理由：逐帧对照「隧道」与「虫洞」的差别。
+ * 这是两个样例存在的唯一理由：逐帧对照「隧道」与「虫洞」的差别。
  * 只要某一行提前走空，对比就失效 —— 而这种失效不抛异常、不报错，
  * 只表现为「一块画面是空的」。
  *
- * <p>历史缺陷：
- * <ol>
- *   <li>进度 {@code coerceIn(0f, 1f)} 且起点从不重置 —— 跑到 14 秒后
- *       永久停在 progress=1，两行都是空的；</li>
- *   <li>循环按整条轨道 {@code [0,1]} 走，而虫洞行会提前 19% 走空 ——
- *       每轮有 2.7 秒只剩隧道行还在滚。</li>
- * </ol>
+ * 因此进度必须按周期取模（不能夹取冻结），循环终点必须收缩到两行都还有字的范围。
  */
 public class PreviewClockTest {
 
@@ -73,7 +67,7 @@ public class PreviewClockTest {
     /**
      * 循环终点必须落在「虫洞行还有字」的范围内。
      *
-     * <p>这条直接把「两行同时出现」变成可断言的数字。
+     * 这条直接把「两行同时出现」变成可断言的数字。
      */
     @Test
     public void cycleEndKeepsBothRowsAlive() {
@@ -108,7 +102,7 @@ public class PreviewClockTest {
     /**
      * 反证：如果循环仍然按整条轨道 {@code [0,1]} 走，就会出现只有一行有字的时段。
      *
-     * <p>这条用来说明「为什么必须引入 cycleEnd」，同时防止有人把它改回去。
+     * 这条用来说明「为什么必须引入 cycleEnd」，同时防止有人把它改回去。
      */
     @Test
     public void fullTrackCycleWouldLeaveTheWormholeRowEmpty() {
@@ -146,7 +140,7 @@ public class PreviewClockTest {
                 onlyTunnelAfter++;
             }
         }
-        assertEquals("收缩后不得再有单行时段", 0, onlyTunnelAfter);
+        assertEquals("收缩后不得有单行时段", 0, onlyTunnelAfter);
     }
 
     /** 没有虫洞时，循环终点就是整条轨道（两行本来就会同时走空）。 */

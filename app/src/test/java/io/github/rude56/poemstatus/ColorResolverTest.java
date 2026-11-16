@@ -11,11 +11,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/**
- * 取色优先级：系统 tint → 原生时钟 → 外观位 → 其它文字控件 → 默认。
- *
- * <p>核心约定：<b>绝不自己反色</b>，只读系统已经算好的结果。
- */
+/** 取色优先级：系统 tint → 原生时钟 → 外观位 → 其它文字控件 → 默认。绝不自己反色，只读系统算好的结果。 */
 public class ColorResolverTest {
 
     @Test
@@ -149,7 +145,7 @@ public class ColorResolverTest {
 
     @Test
     public void subtractTunnelsRemovesTheCoveredSpan() {
-        // 显式写 tunnel：不带 mode 的旧配置默认是虫洞。
+        // 显式写 tunnel：不带 mode 的配置默认按虫洞解析。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("100:200:tunnel");
         float[] l = new float[4];
         float[] r = new float[4];
@@ -221,13 +217,7 @@ public class ColorResolverTest {
 
     // ------------------------------------------------------------ 洞禁止重合
 
-    /**
-     * 洞之间<b>禁止重合</b>。
-     *
-     * <p>两个洞叠在一起时「这一段该按虫洞还是隧道处理」没有答案：绘制层会同时
-     * clipOut（隧道）又 clipRect（虫洞），最终结果取决于遍历顺序 ——
-     * 表现为同一段有时看得见、有时看不见。
-     */
+    /** 洞之间禁止重合：重叠时「按虫洞还是隧道处理」没有答案，结果取决于遍历顺序。 */
     @Test
     public void overlappingHolesAreRejectedOnParse() {
         // 完全重合、部分相交都要被去掉，只留有先出现（按左边界排序后靠前）的那个。

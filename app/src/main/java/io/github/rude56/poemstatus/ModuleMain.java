@@ -8,21 +8,8 @@ import androidx.annotation.NonNull;
 import io.github.libxposed.api.XposedModule;
 
 /**
- * 现代 libxposed API 入口（LSPosed 2.x）。
- *
- * <p>为什么从旧 API（{@code IXposedHookLoadPackage}）迁到现代 API：
- * 旧模块的作用域只是一个「建议列表」（{@code xposedscope}），
- * 用户可以随手把模块勾到任意应用上，模块自身无法拒绝。
- * 只有现代模块才能用 {@code META-INF/xposed/module.prop} 里的
- * <b>{@code staticScope=true}</b> 声明<b>静态作用域</b> ——
- * 用户再也不能把它应用到 {@code com.android.systemui} 之外。
- *
- * <p>模块声明相关的三个文件（都在 {@code src/main/resources/META-INF/xposed/}）：
- * <ul>
- *   <li>{@code java_init.list} —— 本类全限定名；</li>
- *   <li>{@code module.prop} —— {@code minApiVersion}/{@code targetApiVersion}/{@code staticScope}；</li>
- *   <li>{@code scope.list} —— 一行一个包名，只有 {@code com.android.systemui}。</li>
- * </ul>
+ * 现代 libxposed API 入口：只有现代模块能用 {@code module.prop} 的 {@code staticScope=true} 声明静态作用域，
+ * 把模块锁在 {@code com.android.systemui}（声明文件：{@code java_init.list} / {@code module.prop} / {@code scope.list}）。
  */
 public final class ModuleMain extends XposedModule {
 
@@ -39,10 +26,8 @@ public final class ModuleMain extends XposedModule {
     }
 
     /**
-     * 目标进程里代码（含资源与自定义 ClassLoader）已经就绪。
-     *
-     * <p>状态栏 Hook 必须挂在这里而不是 {@code onModuleLoaded}：
-     * 那个阶段 {@code com.android.systemui} 的类还没加载完。
+     * 目标进程里代码（含资源与自定义 ClassLoader）已经就绪；只处理 {@link FeatureAudit#SCOPE_PACKAGE}。
+     * 状态栏 Hook 必须挂在这里：{@code onModuleLoaded} 阶段 {@code com.android.systemui} 的类还没加载完。
      */
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {

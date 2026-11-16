@@ -3,20 +3,8 @@ package io.github.rude56.poemstatus;
 import java.util.List;
 
 /**
- * 播放状态机（纯逻辑，可在 JVM 里直接测）。
- *
- * <p>状态：{@link State#IDLE} → {@link State#CRAWL} → {@link State#CLOCK} → {@link State#CRAWL}…
- * 任一状态都可能切到 {@link State#PAUSED}。
- *
- * <p>硬约束：
- * <ul>
- *   <li>进入 CLOCK / PAUSED / IDLE 时必须停帧回调（{@code frameCallbackActive=false}），
- *       并且必须恢复所有状态栏模块的原始 alpha。</li>
- *   <li>时间停留期间不允许任何帧回调，只允许一个定时器。</li>
- *   <li>停顿时长配成 0 也要先恢复系统栏，再立刻播下一首。</li>
- * </ul>
- *
- * <p>所有副作用都通过 {@link Host} 回调交给 Android 层，本类不引用任何 android.* 类型。
+ * 播放状态机（纯逻辑，不引用任何 android.* 类型，可在 JVM 里直接测）：IDLE → CRAWL → CLOCK → CRAWL…，任一状态都可切到 PAUSED。
+ * 进入 CLOCK / PAUSED / IDLE 必须停帧回调并恢复所有状态栏模块的原始 alpha；停留期间只允许一个定时器。
  */
 public final class PoemEngine {
 
@@ -84,9 +72,7 @@ public final class PoemEngine {
         return startedCount;
     }
 
-    /**
-     * 配置/诗库更新。内容变了才会重建播放器，否则保持当前进度。
-     */
+    /** 配置/诗库更新：内容变了才重建播放器，否则保持当前进度。 */
     public void configure(PoemConfig cfg, List<PoemItem> enabledPoems) {
         PoemConfig next = cfg == null ? new PoemConfig() : cfg;
         next.normalized();
@@ -120,7 +106,7 @@ public final class PoemEngine {
      * 每次控制器 tick（配置变更 / 屏幕事件 / 前台切换）调用一次。
      *
      * @param shouldPause 是否满足任一暂停条件
-     * @param reason      暂停原因（用于日志），不需要可为空
+     * @param reason      暂停原因（用于日志），可为空
      */
     public void tick(boolean shouldPause, String reason) {
         if (shouldPause) {
@@ -154,13 +140,8 @@ public final class PoemEngine {
         if (state == State.CLOCK) {
             host.cancelClock();
         }
-        // 任何<b>进入</b>暂停的路径都必须恢复系统栏；已经处于暂停态就不必再恢复一次。
-        //
-        // 这一条不是微优化：暂停期间 tick() 仍会按心跳每 3 秒跑一次，
-        // 每次都调 pause()。而 restoreModules() 最终会走到 HolePuncher.clear()
-        // 里的 root.invalidate() —— 整条状态栏全量重绘。
-        // 也就是说旧代码在「锁屏」「白名单命中」「横屏」这些正常暂停场景下，
-        // 每 3 秒白重绘一次状态栏，纯粹浪费电。
+        // 任何进入暂停的路径都必须恢复系统栏；已处于暂停态则跳过：
+        // 暂停期间 tick() 仍会周期性调 pause()，重复恢复会触发整条状态栏全量重绘。
         if (changed) {
             host.restoreModules();
         }
@@ -187,7 +168,7 @@ public final class PoemEngine {
         host.onStateChanged(state);
     }
 
-    /** 白话：去 IDLE 但不重建播放器（当前这首作废，下一首继续）。 */
+    /** 去 IDLE 但不重建播放器（当前这首作废，下一首继续）。 */
     private void enterIdle() {
         if (state == State.CRAWL) {
             host.stopCrawl();

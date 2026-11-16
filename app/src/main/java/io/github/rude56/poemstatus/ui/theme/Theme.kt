@@ -17,16 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Material 3 主题。
- *
- * <p>取色策略（按优先级）：
- * <ol>
- *   <li>Android 12+ 默认跟随系统壁纸（Material You 动态取色）—— 这是 Material 3 的
- *       核心特性，用户换壁纸后整个设置页会跟着变色，不需要我们再挑颜色；</li>
- *   <li>低版本或动态取色不可用时，回落到内置的「墨蓝」配色。</li>
- * </ol>
- *
- * <p>深浅色跟随系统，夜间自动切换，不需要单独的开关。
+ * Material 3 主题：Android 12+ 默认跟随系统壁纸动态取色，低版本回落到内置「墨蓝」配色；
+ * 深浅色跟随系统，夜间自动切换。
  */
 
 // ---------------- 内置「墨蓝」配色（动态取色不可用时使用） ----------------
@@ -123,7 +115,7 @@ private val PoemTypography: Typography = Typography().let { base ->
     )
 }
 
-/** 圆角统一放大一档，视觉上更现代（Material 3 的 expressive 方向）。 */
+/** 圆角统一放大一档（Material 3 的 expressive 方向）。 */
 private val PoemShapes = Shapes(
     extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
     small = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
@@ -155,13 +147,9 @@ fun PoemTheme(
 }
 
 /**
- * 洞的标识色 —— <b>高区分度</b>。
- *
- * <p>用户配的洞需要「一眼分清是哪一个」，所以用饱和度高、色相互相拉开的颜色，
- * 而不是低饱和的莫奈色板：莫奈色叠在状态栏上彼此太接近，两个洞相邻时几乎看不出边界。
- *
- * <p>顺序经过挑选：相邻两个洞的颜色在色相环上间隔尽量大（红→青→橙→蓝→绿→紫→黄→粉），
- * 这样即使只配两个洞，也一定是冷暖对比而不是同色系。
+ * 洞的标识色（8 色）：高区分度，饱和度高、色相互相拉开。
+ * 低饱和色叠在状态栏上彼此太接近，两个洞相邻时几乎看不出边界。
+ * 顺序经过挑选：相邻两色在色相环上间隔尽量大（红→青→橙→蓝→绿→紫→黄→粉），只配两个洞也是冷暖对比。
  */
 val HolePalette = listOf(
     Color(0xFFE5484D), // 红

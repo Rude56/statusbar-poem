@@ -39,11 +39,8 @@ import io.github.rude56.poemstatus.PoemLibrary
 import io.github.rude56.poemstatus.R
 
 /**
- * 新增 / 编辑诗句（二级页，全屏而不是对话框）。
- *
- * <p>为什么从对话框改成整页：对话框在键盘弹出后只剩两行可见，
- * 而且「保存」按钮会被键盘顶掉；整页可以用 `imePadding()` 正确避让键盘，
- * 长诗句也能完整看到。
+ * 新增 / 编辑诗句（二级页，全屏而不是对话框）：对话框在键盘弹出后只剩两行可见、
+ * 「保存」按钮还会被键盘顶掉；整页可以用 `imePadding()` 正确避让键盘，长诗句也能完整看到。
  */
 @Composable
 fun PoemEditScreen(

@@ -142,10 +142,9 @@ public class PoemLibraryTest {
     }
 
     /**
-     * 核心回归：搜索过滤后拖动，只能和「看得见的诗」换位。
+     * 搜索过滤后拖动，只能和「看得见的诗」换位。
      *
-     * <p>旧实现按整表下标交换，用户拖 A（可见）往下时，实际是 A 和它下面
-     * 那首<b>被过滤掉的</b>诗换位 —— 屏幕上什么都不动，松手后顺序已变。
+     * 按整表下标交换会让可见的诗和被过滤掉的诗换位 —— 屏幕上什么都不动，松手后顺序已变。
      */
     @Test
     public void moveAmongVisibleSkipsFilteredOutPoems() {
@@ -181,7 +180,7 @@ public class PoemLibraryTest {
         Set<String> visible = idsOf(a, b);
 
         assertTrue(PoemLibrary.moveAmongVisible(list, a.id, visible, 1));
-        // 隐藏的三首必须还待在原来的下标上，顺序仍是 乙 丙 丁
+        // 隐藏的三首必须保持原下标不变，顺序仍是 乙 丙 丁
         assertEquals(Arrays.asList("戊", "乙", "丙", "丁", "甲"), texts(list));
         assertEquals(h1.id, list.get(1).id);
         assertEquals(h2.id, list.get(2).id);
@@ -231,7 +230,6 @@ public class PoemLibraryTest {
     /**
      * 反复移动必须能走遍所有可见位置，且不丢诗、不重复。
      *
-     * <p>这是「拖动几十次之后列表会不会坏掉」的等价断言：
      * 每次移动都只做一次交换，长度和 id 集合必须始终不变。
      */
     @Test

@@ -37,9 +37,7 @@ import io.github.rude56.poemstatus.ui.components.SettingsCard
 
 /**
  * 关于（二级页）：版本、作用域、隐私说明、常见问题。
- *
- * <p>把「需要重启 SystemUI」「只对 SystemUI 生效」「不联网」这几条容易困惑的点
- * 直接写在这里，避免用户到群里问。
+ * 「需要重启 SystemUI」「只对 SystemUI 生效」「不联网」这几条容易困惑的点直接写在这里。
  */
 @Composable
 fun AboutScreen(context: Context) {
@@ -56,9 +54,9 @@ fun AboutScreen(context: Context) {
                 .padding(vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 用 adaptive-icon 的前景矢量图，而不是 @mipmap/ic_launcher ——
-            // 后者是 <adaptive-icon> 容器，Compose 的 painterResource 只接受
-            // 矢量或位图，直接加载会抛 IllegalArgumentException。
+            // 用 adaptive-icon 的前景矢量图，而不是 @mipmap/ic_launcher：
+            // 后者是 <adaptive-icon> 容器，Compose 的 painterResource 只接受矢量或位图，
+            // 直接加载会抛 IllegalArgumentException。
             Box(
                 Modifier
                     .size(72.dp)

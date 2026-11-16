@@ -10,24 +10,14 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-/**
- * 配置层的不变量。
- *
- * <p>这些属性看起来「显然成立」，但配置要跨两进程、跨两次启动、还要能被手改，
- * 任何一处不对称都会变成用户侧「我改的东西没了 / 变成另一种了」。
- * 所以这里用<b>属性断言</b>而不是逐字段列举 —— 尤其是 {@link #copyCoversEveryField}，
- * 它用反射保证「新增字段但忘了加进 copy()」会在测试里立刻失败。
- */
+/** 配置层不变量：跨两进程、跨两次启动、可被手改，任何一侧不对称都会表现成「设置不生效」。 */
 public class ConfigInvariantTest {
 
     /**
-     * {@code copy()} 必须覆盖<b>每一个</b>实例字段。
+     * {@code copy()} 必须覆盖每一个实例字段。
      *
-     * <p>为什么用反射：{@code copy()} 是手写的字段罗列，新增字段时最容易漏。
-     * 漏了不会编译报错，只会在运行时表现为「某个开关保存后不生效」——
-     * 而这正是最难查的一类 bug：UI 上明明拨过去了，SystemUI 那边永远是旧值。
-     * 注释里写着「漏改会立刻在编译期暴露」，实际上编译期<b>不会</b>暴露，
-     * 所以必须靠这条测试兜住。
+     * {@code copy()} 是手写的字段罗列，漏一个不会编译报错，只表现为「某个开关保存后不生效」，
+     * 所以用反射兜住。
      */
     @Test
     public void copyCoversEveryField() throws Exception {
@@ -80,7 +70,7 @@ public class ConfigInvariantTest {
     /**
      * 配置编解码必须往返无损。
      *
-     * <p>这条覆盖「App 存 → Provider 编码 → SystemUI 解码」整条链路：
+     * 这条覆盖「App 存 → Provider 编码 → SystemUI 解码」整条链路：
      * 任何一侧漏字段，用户看到的就是「设置不生效」。
      */
     @Test
@@ -126,11 +116,8 @@ public class ConfigInvariantTest {
     /**
      * {@code holesJson} 若是一段 JSON 数组，也必须保住每个洞的模式与槽位。
      *
-     * <p>曾经这里把洞重新拼成 {@code "l:r"} 两字段形式，
-     * <b>模式和槽位被直接丢掉</b>，于是隧道洞被当成虫洞、颜色也全乱了。
-     * 虽然正常写入走的是 {@code HoleRects.encode()}（不是 JSON），
-     * 但「兼容旧格式」的这段代码不该比正常路径更不保真 ——
-     * 它存在的意义恰恰是把旧数据读对。
+     * 只保留 {@code "l:r"} 两字段会让隧道洞被当成虫洞、颜色也全乱；正常写入走
+     * {@code HoleRects.encode()}，但兼容旧格式的这段代码同样必须保真。
      */
     @Test
     public void jsonHolesKeepModeAndSlot() {
@@ -185,7 +172,7 @@ public class ConfigInvariantTest {
     /**
      * 导入自己刚导出的内容，不应产生任何新条目。
      *
-     * <p>这是「导出再导入」最容易被破坏的性质：只要 id 计算或去重规则有一边走偏，
+     * 这是「导出再导入」最容易被破坏的性质：只要 id 计算或去重规则有一边走偏，
      * 用户每导入一次就多一份副本。
      */
     @Test
@@ -202,7 +189,7 @@ public class ConfigInvariantTest {
         assertEquals("诗库大小不变", 2, list.size());
     }
 
-    /** 诗库清空后，内置诗不得再被合并回来（poemsSeeded 一旦为 true 就永久生效）。 */
+    /** 诗库清空后，内置诗不得被合并回来（poemsSeeded 一旦为 true 就永久生效）。 */
     @Test
     public void seededEmptyLibraryStaysEmpty() {
         assertTrue(PoemLibrary.load(true, "[]").isEmpty());

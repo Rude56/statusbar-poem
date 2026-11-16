@@ -7,10 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 配置的 JSON 编解码。
- *
- * <p>Provider 只吐出一个 JSON 字符串，Hook 侧解析它。所有字段名都取自
- * {@link ConfigKeys}，写读两侧同源；解析失败时调用方必须保留上一份有效配置。
+ * 配置的 JSON 编解码：所有字段名都取自 {@link ConfigKeys}，写读两侧同源。
+ * 解析失败时调用方必须保留上一份有效配置。
  */
 public final class ConfigCodec {
 

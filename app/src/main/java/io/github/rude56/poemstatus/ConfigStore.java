@@ -9,9 +9,7 @@ import java.util.Map;
 
 /**
  * App 侧配置存储（SharedPreferences）。
- *
- * <p>只被本应用进程使用；SystemUI 进程绝不直接读这里的文件，只能通过
- * {@link ConfigProvider} 拿 JSON。
+ * 只被本应用进程使用；SystemUI 进程绝不直接读这里的文件，只能通过 {@link ConfigProvider} 拿 JSON。
  */
 public final class ConfigStore {
 
@@ -53,9 +51,7 @@ public final class ConfigStore {
         return c.normalized();
     }
 
-    /**
-     * 保存并递增 configRevision；bumpRevision=false 用于首次初始化写入。
-     */
+    /** 保存并递增 configRevision；bumpRevision=false 用于首次初始化写入。 */
     public static void save(Context ctx, PoemConfig c, boolean bumpRevision) {
         if (c == null) {
             return;

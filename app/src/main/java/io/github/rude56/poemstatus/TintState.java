@@ -1,20 +1,8 @@
 package io.github.rude56.poemstatus;
 
 /**
- * 状态栏前景色缓存。
- *
- * <p>诗句颜色必须和原生状态栏一致，但本机 ROM 的状态栏是 Compose 绘制的：
- * {@code DarkIconDispatcherImpl.mIconTint} 只在开机时算一次，之后切到浅色应用
- * 也不会再变（实测恒为白色，而屏幕上的图标已经变黑）。真正随应用背景变化的是
- * {@code LightBarControllerImpl.onStatusBarAppearanceChanged(...)} 收到的
- * {@code AppearanceRegion.appearance} 位 —— 这就是系统对每条状态栏「该用浅字还是深字」
- * 算好的最终答案。
- *
- * <p>所以这里只存<b>系统算好的结果</b>，不做任何亮度推断。
- *
- * <p><b>推送式通知</b>：值真的变了就<b>立刻</b>叫醒订阅者（{@link #setListener}），
- * 于是诗句颜色不再需要定时轮询 —— 切换深浅色应用时是系统推给我们的，
- * 我们不必每 300ms 去问一次。这是取色路径唯一真正的省电点。
+ * 状态栏前景色缓存：只存系统算好的外观位，不做亮度推断，值变化时推送通知而不轮询。
+ * {@code DarkIconDispatcherImpl.mIconTint} 只在开机时算一次，不能作为主来源。
  */
 final class TintState {
 
@@ -54,12 +42,11 @@ final class TintState {
     /**
      * 系统给状态栏算好的前景色。
      *
-     * <p>只有在它确实会随应用变化时才有意义 —— 本机实测它恒为白色（不会更新），
-     * 所以颜色主要靠 {@link #lightStatusBars()}；返回 0 表示这一步没拿到。
+     * 返回 0 表示这一步没拿到；颜色主要靠 {@link #lightStatusBars()}。
      */
     static int tint() {
         int t = tint;
-        // 本机实测该值不会更新：一旦发现它和外观位矛盾，就以外观位为准。
+        // 该值与外观位矛盾时以外观位为准（它在部分 ROM 上不随应用更新）。
         Boolean light = lightStatusBars;
         if (light != null && t != 0) {
             boolean tintIsLight = ColorResolver.luminance(t) > 0.5f;

@@ -1,11 +1,8 @@
 package io.github.rude56.poemstatus;
 
 /**
- * 配置键的唯一定义处。
- *
- * <p>App 侧写 SharedPreferences、Hook 侧读 Provider，两边必须引用同一组常量，
- * 否则会出现「设置保存了但模块读不到」这种最难查的问题。{@link #ALL} 同时被
- * {@link ConfigCodec} 与单元测试用来做一一对应校验。
+ * 配置键的唯一定义处：App 侧写 SharedPreferences、Hook 侧读 Provider，两边必须引用同一组常量。
+ * {@link #ALL} 同时被 {@link ConfigCodec} 与单元测试用来做一一对应校验。
  */
 public final class ConfigKeys {
 

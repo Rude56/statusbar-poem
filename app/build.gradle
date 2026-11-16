@@ -29,28 +29,38 @@ android {
     }
 
     signingConfigs {
-        // 固定 debug keystore：保证后续版本可覆盖安装，签名不随构建机变化。
-        debug {
-            storeFile file('../keystore/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+        // 发布签名从 keystore.properties 读取（不提交到仓库）。
+        // 没有该文件时退回 Android 默认 debug 签名，保证任何人都能直接构建。
+        release {
+            def propsFile = rootProject.file('keystore.properties')
+            if (propsFile.exists()) {
+                def props = new Properties()
+                // 按 UTF-8 读并去掉 BOM：Windows 记事本/PowerShell 默认会写 BOM，
+                // 否则第一个键名会变成 "\ufeffstoreFile" 而取不到值。
+                def text = propsFile.getText('UTF-8').replace('\uFEFF', '')
+                props.load(new StringReader(text))
+                storeFile rootProject.file(props.getProperty('storeFile'))
+                storePassword props.getProperty('storePassword')
+                keyAlias props.getProperty('keyAlias')
+                keyPassword props.getProperty('keyPassword')
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            // debug 用默认签名即可，方便真机抓堆栈。
         }
         release {
-            // 只对 release 开启裁剪/混淆；debug 保持原样，方便真机抓堆栈与热修。
-            // Hook 侧全靠字符串反射，R8 删不掉也改不到那些字符串，
+            // 只对 release 开启裁剪/混淆；Hook 侧全靠字符串反射，
             // 需要保住的东西都写在 proguard-rules.pro 里。
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                     'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            if (rootProject.file('keystore.properties').exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
