@@ -59,8 +59,7 @@ import kotlinx.coroutines.delay
 
 /**
  * 洞（二级页）：卡片列表、点一下进编辑页、左右滑动删除、右下角加号新增，操作方式与「古诗库」一致。
- * 彩色框由 {@code PoemApp} 里的 {@link HoleFrameOverlay} 直接画在 App 窗口的状态栏区域上，进出本页即显示/消失。
- * 每个洞带一个槽位，槽位跟着洞走：删掉别的洞、改边界导致重排，这个洞的颜色都不会变。
+ * 彩色框由 {@code PoemApp} 的 {@link HoleFrameOverlay} 画在 App 窗口状态栏区域；槽位跟着洞走，颜色不会变。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +81,6 @@ fun CutoutScreen(
             contentPadding = PaddingValues(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // 两个固定样例：先把「隧道 / 虫洞」讲清楚，再让用户配自己的洞。
             item(key = "samples") {
                 Column {
                     SectionHeader(stringResource(R.string.hole_samples_title))
@@ -114,7 +112,6 @@ fun CutoutScreen(
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
-                                // 不直接删：先弹确认框，用户取消时行滑回去。
                                 pendingDelete = hole
                             }
                             false
@@ -127,8 +124,7 @@ fun CutoutScreen(
                             Box(
                                 Modifier
                                     .fillMaxWidth()
-                                    // 行高和诗库的卡片保持一致：两处都是「左滑删除」，
-                                    // 高度不同会让同一次滑动的手感忽大忽小。
+                                    // 行高和诗库的卡片保持一致：两处都是「左滑删除」，高度不同会让手感忽大忽小。
                                     .heightIn(min = 88.dp)
                                     .padding(horizontal = 16.dp)
                                     .background(
@@ -165,7 +161,6 @@ fun CutoutScreen(
         }
     }
 
-    // 新增按钮：与诗库的 FAB 同一个位置与样式。
     Box(
         Modifier
             .fillMaxSize()
@@ -174,7 +169,6 @@ fun CutoutScreen(
     ) {
         ExtendedFloatingActionButton(
             onClick = {
-                // 上限与「没地方放」都必须给用户反馈：否则点一下毫无反应，用户只会以为按钮坏了。
                 if (holes.size >= HoleRects.MAX_HOLES) {
                     snackbar(maxReachedMsg)
                     return@ExtendedFloatingActionButton
@@ -184,12 +178,10 @@ fun CutoutScreen(
                     snackbar(noRoomMsg)
                     return@ExtendedFloatingActionButton
                 }
-                // 双保险：findFreeSpot 保证不重叠，这里也不允许把重叠的洞写进配置（重叠会让绘制层自相矛盾）。
                 if (HoleRects.overlapsAny(holes, spot[0], spot[1], -1)) {
                     snackbar(noRoomMsg)
                     return@ExtendedFloatingActionButton
                 }
-                // 新洞取「当前没被占用的最小槽位」：已有洞的颜色一个都不会变。
                 val slot = HoleRects.nextFreeSlot(holes)
                 val next = cfg.copy()
                 next.holesJson = HoleRects.encode(
@@ -265,7 +257,6 @@ private fun HoleCard(
             modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 色块：与状态栏上真实框的颜色一一对应。
             Box(
                 modifier = Modifier
                     .size(28.dp)

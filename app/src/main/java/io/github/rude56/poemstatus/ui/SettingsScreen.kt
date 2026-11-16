@@ -70,7 +70,6 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
     ) {
-        // ---------- 播放 ----------
         SectionHeader(stringResource(R.string.section_playback))
         SettingsCard {
             SliderRow(
@@ -104,7 +103,6 @@ fun SettingsScreen(
             }
         }
 
-        // ---------- 显示 ----------
         SectionHeader(stringResource(R.string.section_display))
         SettingsCard {
             SwitchRow(
@@ -126,7 +124,6 @@ fun SettingsScreen(
             ) { on -> persist { it.bobEnabled = on } }
         }
 
-        // ---------- 洞 ----------
         SectionHeader(stringResource(R.string.section_holes))
         SettingsCard {
             NavRow(
@@ -139,7 +136,6 @@ fun SettingsScreen(
             )
         }
 
-        // ---------- 暂停条件 ----------
         SectionHeader(stringResource(R.string.section_pause))
         SettingsCard {
             SwitchRow(
@@ -164,7 +160,6 @@ fun SettingsScreen(
             )
         }
 
-        // ---------- 维护 ----------
         SectionHeader(stringResource(R.string.section_maintenance))
         SettingsCard {
             Column(Modifier.padding(20.dp)) {
@@ -200,7 +195,6 @@ fun SettingsScreen(
             )
         }
 
-        // 底部一行小字：说明数据全部离线保存。
         Spacer(Modifier.height(24.dp))
         Text(
             stringResource(R.string.footer_offline),

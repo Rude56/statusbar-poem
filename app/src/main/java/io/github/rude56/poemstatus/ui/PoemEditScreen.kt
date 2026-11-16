@@ -39,8 +39,8 @@ import io.github.rude56.poemstatus.PoemLibrary
 import io.github.rude56.poemstatus.R
 
 /**
- * 新增 / 编辑诗句（二级页，全屏而不是对话框）：对话框在键盘弹出后只剩两行可见、
- * 「保存」按钮还会被键盘顶掉；整页可以用 `imePadding()` 正确避让键盘，长诗句也能完整看到。
+ * 新增 / 编辑诗句（二级页，全屏而不是对话框）：对话框在键盘弹出后只剩两行可见、「保存」按钮还会被键盘顶掉；
+ * 整页可以用 `imePadding()` 正确避让键盘，长诗句也能完整看到。
  */
 @Composable
 fun PoemEditScreen(
@@ -136,7 +136,6 @@ fun PoemEditScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // 删除只出现在「编辑已有诗」时，避免新增页出现一个无效按钮。
             if (initial != null) {
                 OutlinedButton(
                     onClick = { pendingDelete = true },
@@ -166,8 +165,7 @@ fun PoemEditScreen(
             text = { Text(initial.text, maxLines = 3, overflow = TextOverflow.Ellipsis) },
             confirmButton = {
                 TextButton(onClick = {
-                    // 从编辑页删除同样给撤销：这是比列表滑删更「重」的操作，
-                    // 删完直接退回列表，用户连反悔的入口都没有。
+                    // 从编辑页删除同样给撤销：这是比列表滑删更「重」的操作，删完直接退回列表。
                     val before = poems
                     AppState.persistPoems(context, poems.filterNot { it.id == initial.id })
                     pendingDelete = false

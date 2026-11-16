@@ -84,7 +84,6 @@ public final class PoemEngine {
             librarySignature = signature(enabledPoems);
             playback = new PoemLibrary.Playback(enabledPoems, next.orderMode, next.configRevision);
             if (state == State.CRAWL || state == State.CLOCK) {
-                // 内容变了，当前这首直接作废，下个 tick 从头开始。
                 enterIdle();
             }
         } else if (playback == null) {
@@ -102,12 +101,7 @@ public final class PoemEngine {
         return sb.toString();
     }
 
-    /**
-     * 每次控制器 tick（配置变更 / 屏幕事件 / 前台切换）调用一次。
-     *
-     * @param shouldPause 是否满足任一暂停条件
-     * @param reason      暂停原因（用于日志），可为空
-     */
+    /** 每次控制器 tick（配置变更 / 屏幕事件 / 前台切换）调用一次。 */
     public void tick(boolean shouldPause, String reason) {
         if (shouldPause) {
             pause(reason);
@@ -122,7 +116,6 @@ public final class PoemEngine {
             return;
         }
         if (state == State.PAUSED) {
-            // 条件解除：从暂停恢复，重新开始一首。
             enterIdle();
         }
         if (state == State.IDLE) {

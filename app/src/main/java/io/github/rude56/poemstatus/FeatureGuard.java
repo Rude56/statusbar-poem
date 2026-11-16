@@ -13,7 +13,7 @@ public final class FeatureGuard {
     /** 熔断后的「试探」计数：每累积到 {@link #MAX_FAIL} 次调用放行一次。 */
     private final java.util.HashMap<String, Integer> probes = new java.util.HashMap<>();
 
-    /** 报告接口：日志走注入，本类才能在 JVM 单测里直接 new（{@code android.util.Log} 在本地单测里一调就抛）。 */
+    /** 报告接口：日志走注入，本类才能在 JVM 单测里直接 new（{@code android.util.Log} 本地一调就抛）。 */
     interface Reporter {
         void report(String message);
     }
@@ -35,7 +35,7 @@ public final class FeatureGuard {
         void run() throws Throwable;
     }
 
-    /** @return true 表示这次执行成功 */
+    /** 执行一次受保护逻辑；true 表示这次执行成功。 */
     public boolean guard(String id, Body body) {
         if (!admit(id)) {
             return false;
@@ -56,7 +56,7 @@ public final class FeatureGuard {
     }
 
     /**
-     * 帧内快路径：语义与 {@link #guard} 一致，但成功路径上不碰任何 Map。
+     * 帧内快路径：语义与 {@link #guard} 一致，但成功路径上不碰任何 Map；
      * 调用方必须传入复用的 Body 实例，否则 lambda 仍会每帧分配一个对象。
      */
     public boolean guardFast(String id, Body body) {
@@ -82,9 +82,7 @@ public final class FeatureGuard {
     /** 这一轮是否是「试探」放行（成功即解除熔断）。 */
     private boolean probeGranted;
 
-    /**
-     * 这一轮是否允许执行：未熔断直接放行（帧内不碰 Map），已熔断则每 {@link #MAX_FAIL} 次调用放行一次试探。
-     */
+    /** 这一轮是否允许执行：未熔断直接放行（帧内不碰 Map），已熔断则每 {@link #MAX_FAIL} 次放行一次试探。 */
     private boolean admit(String id) {
         if (!disabled.contains(id)) {
             return true;

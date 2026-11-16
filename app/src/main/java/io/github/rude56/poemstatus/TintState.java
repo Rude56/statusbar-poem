@@ -1,12 +1,12 @@
 package io.github.rude56.poemstatus;
 
 /**
- * 状态栏前景色缓存：只存系统算好的外观位，不做亮度推断，值变化时推送通知而不轮询。
+ * 状态栏前景色缓存：只存系统算好的外观位，不做亮度推断，值变化时推送而不轮询。
  * {@code DarkIconDispatcherImpl.mIconTint} 只在开机时算一次，不能作为主来源。
  */
 final class TintState {
 
-    /** 0 表示还没拿到。ARGB，alpha 恒为 0xFF。 */
+    /** 0 表示还没拿到；ARGB，alpha 恒为 0xFF。 */
     private static volatile int tint;
 
     /** 系统算好的外观位；null 表示还没拿到。 */
@@ -39,11 +39,7 @@ final class TintState {
         }
     }
 
-    /**
-     * 系统给状态栏算好的前景色。
-     *
-     * 返回 0 表示这一步没拿到；颜色主要靠 {@link #lightStatusBars()}。
-     */
+    /** 系统算好的前景色；返回 0 表示这一步没拿到，颜色主要靠 {@link #lightStatusBars()}。 */
     static int tint() {
         int t = tint;
         // 该值与外观位矛盾时以外观位为准（它在部分 ROM 上不随应用更新）。
@@ -61,11 +57,7 @@ final class TintState {
         return lightStatusBars;
     }
 
-    /**
-     * 抄下系统算好的外观位。
-     *
-     * @param appearance {@code APPEARANCE_LIGHT_STATUS_BARS}=8 表示浅色背景配深色字
-     */
+    /** 抄下系统算好的外观位：{@code APPEARANCE_LIGHT_STATUS_BARS}=8 表示浅色背景配深色字。 */
     static void setAppearance(int appearance) {
         boolean light = (appearance & APPEARANCE_LIGHT_STATUS_BARS) != 0;
         Boolean old = lightStatusBars;
@@ -73,11 +65,10 @@ final class TintState {
             return;
         }
         lightStatusBars = light;
-        // 只在真正切换时打一行（应用深浅色切换才会出现），不会刷屏。
         Log.i("POEM appearance light=" + light + " raw=" + appearance);
         notifyChanged();
     }
-    /** 直接把系统算好的前景色记下来（只有在它确实会更新时才有意义）。 */
+    /** 记下系统算好的前景色（只有它确实会更新时才有意义）。 */
     static void set(int color) {
         if (color == 0 || color == tint) {
             return;

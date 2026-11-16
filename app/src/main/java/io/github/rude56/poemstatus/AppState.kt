@@ -30,12 +30,10 @@ object AppState {
         config.value = next
     }
 
-    /**
-     * 保存诗库：诗库的唯一写入口，所有增删改排序都必须走这里。
-     *
-     * 必须 copy()：{@code config.value} 里放的是同一个对象实例，原地改字段再赋回去时
-     * {@code mutableStateOf} 的默认策略 {@code structuralEqualityPolicy} 认为新旧值相等，不会触发重组。
-     */
+        /**
+         * 保存诗库：诗库的唯一写入口，所有增删改排序都必须走这里。
+         * 必须 copy()：原地改 {@code config.value} 的字段再赋回，{@code structuralEqualityPolicy} 认为相等而不重组。
+         */
     fun persistPoems(context: Context, list: List<PoemItem>) {
         val next = config.value.copy()
         next.poemsJson = PoemItem.listToJson(list)

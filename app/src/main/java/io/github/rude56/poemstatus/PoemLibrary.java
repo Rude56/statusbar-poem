@@ -17,7 +17,7 @@ public final class PoemLibrary {
     public static final String ORDER_SEQUENTIAL = "sequential";
     public static final String ORDER_RANDOM = "random";
 
-    /** 内置 6 首。故意选择常见、字数适中的句子，便于在状态栏里看清滚动。 */
+    /** 内置 6 首；选常见、字数适中的句子，便于在状态栏里看清滚动。 */
     private static final String[][] BUILTIN = {
             {"长风破浪会有时，直挂云帆济沧海。", "李白", "行路难"},
             {"欲穷千里目，更上一层楼。", "王之涣", "登鹳雀楼"},
@@ -167,7 +167,7 @@ public final class PoemLibrary {
 
     /**
      * 在「可见的诗」之间移动一格，被搜索过滤掉的诗原地不动（{@code step}：-1 上移，+1 下移）。
-     * 必须用 swap 而不是 remove+insert：交换时被跨过的隐藏诗一个字节都不动，删除再插入会让它们整体平移。
+     * 必须用 swap 而不是 remove+insert：交换时被跨过的隐藏诗一个字节都不动。
      */
     public static boolean moveAmongVisible(List<PoemItem> list, String id,
                                            Set<String> visible, int step) {
@@ -190,7 +190,7 @@ public final class PoemLibrary {
         return true;
     }
 
-    /** 去重后的 ID 集合，供调试/去重诊断。 */
+    /** 去重后的 ID 集合。 */
     public static Set<String> idSet(List<PoemItem> list) {
         Set<String> out = new HashSet<>();
         if (list != null) {

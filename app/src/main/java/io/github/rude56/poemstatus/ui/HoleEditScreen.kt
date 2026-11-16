@@ -47,12 +47,7 @@ import io.github.rude56.poemstatus.ui.theme.holeColor
 
 /**
  * 洞的编辑页（二级页）：全屏、避让键盘、底部「删除 / 取消 / 保存」，与「编辑诗句」结构一致。
- * 编辑从列表拆出来：列表只负责浏览和定位，编辑页只负责改一个洞。
- * 洞之间禁止重合：保存前检查是否和别的洞相交。重合会让绘制层的「虫洞分段」和「隧道挖空」互相抵消，
- * 表现为同一段有时看得见有时看不见，所以直接拦住并告诉用户撞到了哪个洞。
- *
- * @param slot 要编辑的洞的颜色槽位（洞的稳定标识）
- * @param onDone 保存或取消后回到列表
+ * 洞之间禁止重合：重合会让绘制层的「虫洞分段」和「隧道挖空」互相抵消，所以保存前拦住并指出撞到了哪个洞。
  */
 @Composable
 fun HoleEditScreen(
@@ -65,10 +60,8 @@ fun HoleEditScreen(
     val initial = remember(slot, holes) { holes.firstOrNull { it.slot == slot } }
 
     // 洞可能在别处被删掉（例如返回时数据已变），此时直接退回列表。
-    //
-    // 必须在 LaunchedEffect 里退，不能在组合期间直接调 onDone()：
-    // 那会在 composition 过程中修改导航栈（写 mutableStateListOf），属于 Compose 明确禁止的行为 ——
-    // 轻则重组顺序错乱，重则抛 "Reading a state that was created after the snapshot"。
+    // 必须在 LaunchedEffect 里退，不能在组合期间直接调 onDone()：那会在 composition 过程中
+    // 修改导航栈（写 mutableStateListOf），属于 Compose 明确禁止的行为。
     if (initial == null) {
         LaunchedEffect(slot) { onDone() }
         return
@@ -89,7 +82,6 @@ fun HoleEditScreen(
             error = invalidMsg
             return
         }
-        // 重合检查：撞到别的洞就拒绝保存，并指出是哪一个。
         val clash = HoleRects.firstOverlap(holes, l, r, slot)
         if (clash != null) {
             error = context.getString(
@@ -132,7 +124,6 @@ fun HoleEditScreen(
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // 颜色标识：与状态栏上的框、列表里的色块同色。
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier

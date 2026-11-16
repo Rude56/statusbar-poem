@@ -53,7 +53,7 @@ import io.github.rude56.poemstatus.HoleRects
 import io.github.rude56.poemstatus.R
 import kotlinx.coroutines.launch
 
-/**
+/*
  * 页面导航骨架：一级页是底部三个 tab（平级、不压栈），二级页压栈、带返回箭头。
  * 不引 navigation-compose：只有两层、参数只有一个诗句 id，自己维护返回栈依赖更少。
  */
@@ -77,12 +77,10 @@ sealed interface Detail {
     /** poemId 为 null 表示新增。 */
     data class PoemEdit(val poemId: String?) : Detail
 
-    /**
-     * 序列化成一个短字符串，供 {@code rememberSaveable} 存进 Bundle。
-     *
-     * 只做「类型 + 参数」的最小编码，不引 kotlinx.serialization：
-     * 整个导航栈只有 5 种页面、最多两个参数。诗句 id 是内容哈希（十六进制），不含分隔符，可安全拼接。
-     */
+        /**
+         * 序列化成一个短字符串，供 {@code rememberSaveable} 存进 Bundle。
+         * 只做「类型 + 参数」的最小编码，不引 kotlinx.serialization；诗句 id 是十六进制内容哈希，不含分隔符。
+         */
     fun encode(): String = when (this) {
         Holes -> "holes"
         Whitelist -> "whitelist"
@@ -119,11 +117,8 @@ private fun Detail.title(): String = when (this) {
 val LocalSnackbar = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 /**
- * 带「撤销」按钮的提示条。
- *
- * 删除诗句不可逆，但每次弹确认框会让常用操作变慢，所以「先删，再给 4 秒撤销窗口」：
- * {@code LocalUndoable.current("已删除") { 恢复原列表 }}。
- * 撤销回调捕获的是删除前的整份列表而不是单条诗，连续删两首再撤销也能逐级还原，不需要撤销栈。
+ * 带「撤销」按钮的提示条。删除诗句不可逆，但每次弹确认框会让常用操作变慢，
+ * 所以「先删，再给 4 秒撤销窗口」；撤销回调捕获的是删除前的整份列表，连续删两首也能逐级还原。
  */
 val LocalUndoable = staticCompositionLocalOf<(String, () -> Unit) -> Unit> { { _, _ -> } }
 
@@ -131,7 +126,6 @@ val LocalUndoable = staticCompositionLocalOf<(String, () -> Unit) -> Unit> { { _
 @Composable
 fun PoemApp(context: Context) {
     var tab by rememberSaveable { mutableStateOf(Tab.OVERVIEW) }
-    // 导航栈也要能扛住进程被杀：把 Detail 编码成字符串存进 Bundle（rememberSaveable + listSaver）。
     val stack = rememberSaveable(
         saver = listSaver(
             save = { list -> list.map { it.encode() } },
@@ -150,9 +144,8 @@ fun PoemApp(context: Context) {
     val showMessage: (String) -> Unit = remember(snackbarHostState) {
         { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
     }
-    // 撤销用的提示条：挂一个动作按钮，点击即执行回调。
-    // 新提示会顶掉旧提示，所以连续删除时只有最后一次的撤销入口可点 ——
-    // 撤销的目标永远是「刚刚那一下」。
+    // 撤销用的提示条：挂一个动作按钮，点击即执行回调。新提示会顶掉旧提示，
+    // 所以连续删除时只有最后一次的撤销入口可点 —— 撤销的目标永远是「刚刚那一下」。
     val showUndoable: (String, () -> Unit) -> Unit =
         remember(snackbarHostState, snackbarUndoLabel) {
             { msg, undo ->
@@ -167,7 +160,6 @@ fun PoemApp(context: Context) {
             }
         }
 
-    // 系统返回键：先退二级页；已经在一级页时交还系统（回到桌面）。
     BackHandler(enabled = stack.isNotEmpty()) { stack.removeAt(stack.lastIndex) }
 
     Box(Modifier.fillMaxSize()) {
@@ -176,8 +168,7 @@ fun PoemApp(context: Context) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (current == null) {
-                // 一级页用普通 TopAppBar：LargeTopAppBar 在只有 3 个 tab 的场景里
-                // 会吃掉近 1/5 屏幕，却只换来一个标题。
+                // 一级页用普通 TopAppBar：LargeTopAppBar 在只有 3 个 tab 的场景里会吃掉近 1/5 屏幕。
                 TopAppBar(
                     title = {
                         Text(
@@ -304,9 +295,8 @@ fun PoemApp(context: Context) {
         }
     }
 
-    // 洞设置相关页面（列表 + 编辑）里，把彩色框直接画在 App 窗口的状态栏区域上。
-    // App 是 edge-to-edge 的，窗口本来就延伸到状态栏下面，所以这一段视觉上就是真实状态栏；
-    // 状态栏图标由 SystemUI 在更上层绘制，框不会遮住它们。零跨进程、零延迟。
+    // 洞设置相关页面里，把彩色框直接画在 App 窗口的状态栏区域上。App 是 edge-to-edge 的，
+    // 窗口本就延伸到状态栏下面，这一段视觉上就是真实状态栏；零跨进程、零延迟。
     if (current == Detail.Holes || current is Detail.HoleEdit) {
         HoleFrameOverlay(
             holes = HoleRects.parse(AppState.config.value.holesJson),

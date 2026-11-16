@@ -43,7 +43,6 @@ public final class PoemTextCodec {
         if (text == null || text.isEmpty()) {
             return out;
         }
-        // 统一换行符：\r\n 与 \r 都要能读。
         String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
         for (String rawLine : normalized.split("\n")) {
             String line = stripLeadingNumber(rawLine.trim());
@@ -111,10 +110,8 @@ public final class PoemTextCodec {
     }
 
     /**
-     * 把导入结果合并进现有诗库：去重规则与手动添加一致（text+author+source 的稳定 ID），
-     * 导入自己刚导出的文件不会产生重复。
-     *
-     * @return {新增数量, 跳过数量}
+     * 把导入结果合并进现有诗库：去重规则与手动添加一致（text+author+source 稳定 ID），
+     * 导入自己刚导出的文件不会产生重复；返回 {新增数量, 跳过数量}。
      */
     public static int[] merge(List<PoemItem> target, List<PoemItem> source) {
         int added = 0;

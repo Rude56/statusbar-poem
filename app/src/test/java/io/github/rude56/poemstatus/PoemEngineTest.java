@@ -9,9 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/**
- * 状态机：暂停必须恢复系统栏、时间阶段不得有帧回调、配置变化重开、空库不播。
- */
+/** 状态机：暂停必须恢复系统栏、时间阶段不得有帧回调、配置变化重开、空库不播。 */
 public class PoemEngineTest {
 
     /** 记录所有副作用的假 Host。 */
@@ -108,7 +106,7 @@ public class PoemEngineTest {
         e.onClockElapsed();
         assertEquals(PoemEngine.State.CRAWL, e.state());
         assertEquals(2, host.startCount);
-        // 顺序：先 restore，再 start —— 换首时系统栏不可能是半遮挡状态
+        // 顺序：先 restore 再 start。
         int lastRestore = host.events.lastIndexOf("restore");
         int lastStart = host.events.lastIndexOf("start");
         assertTrue("换首前必须已恢复系统栏", lastRestore >= 0 && lastRestore < lastStart);

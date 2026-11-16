@@ -23,7 +23,7 @@ public final class PoemConfig {
     public boolean showSource = true;
     public boolean bobEnabled = false;
     public boolean landscapePause = true;
-    /** 锁屏时暂停：锁屏上通常是通知与时间，滚字既不美观也容易分心，默认开启。 */
+    /** 锁屏时暂停：锁屏上通常是通知与时间，滚字既不美观也容易分心。 */
     public boolean lockscreenPause = true;
     public String orderMode = PoemLibrary.ORDER_SEQUENTIAL;
     public List<String> whitelist = new ArrayList<>();
@@ -42,7 +42,7 @@ public final class PoemConfig {
     }
 
     /**
-     * 把 {@code holesJson} 归一成存储格式 {@code "l:r:mode:slot,..."}；存储格式与 JSON 数组两种输入都接受。
+     * 把 {@code holesJson} 归一成存储格式 {@code "l:r:mode:slot,..."}，存储格式与 JSON 数组都接受。
      * JSON 分支必须走 {@link HoleRects#encode}：否则模式与颜色槽位会丢失（隧道洞读回变成虫洞、颜色重排）。
      */
     private String encodeHoles() {

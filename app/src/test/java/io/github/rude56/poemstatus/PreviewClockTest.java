@@ -7,15 +7,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/**
- * 洞页两行预览必须同时有古诗。
- *
- * 这是两个样例存在的唯一理由：逐帧对照「隧道」与「虫洞」的差别。
- * 只要某一行提前走空，对比就失效 —— 而这种失效不抛异常、不报错，
- * 只表现为「一块画面是空的」。
- *
- * 因此进度必须按周期取模（不能夹取冻结），循环终点必须收缩到两行都还有字的范围。
- */
+/** 洞页两行预览必须同时有古诗。 */
 public class PreviewClockTest {
 
     private static final int CAP = 16;
@@ -55,20 +47,16 @@ public class PreviewClockTest {
         long cycle = PreviewClock.CYCLE_NANOS;
         assertEquals(0f, PreviewClock.progressAt(0L, cycle), 0.0001f);
         assertEquals(0.5f, PreviewClock.progressAt(cycle / 2, cycle), 0.0001f);
-        // 超过一轮：必须绕回来，而不是夹在 1。
+        // 超过一轮必须绕回，而不是夹在 1。
         assertEquals(0.25f, PreviewClock.progressAt(cycle + cycle / 4, cycle), 0.0001f);
         assertEquals(0.75f, PreviewClock.progressAt(cycle * 7 + cycle * 3 / 4, cycle), 0.0001f);
-        // 负时间也要安全（起点用 now - progress*cycle 计算，可能为负）。
+        // 负时间也要安全。
         assertEquals(0.75f, PreviewClock.progressAt(-cycle / 4, cycle), 0.0001f);
         // 非法周期不得除零。
         assertEquals(0f, PreviewClock.progressAt(123L, 0L), 0.0001f);
     }
 
-    /**
-     * 循环终点必须落在「虫洞行还有字」的范围内。
-     *
-     * 这条直接把「两行同时出现」变成可断言的数字。
-     */
+    /** 循环终点必须落在「虫洞行还有字」的范围内。 */
     @Test
     public void cycleEndKeepsBothRowsAlive() {
         float canvasW = 1200f;
@@ -81,9 +69,7 @@ public class PreviewClockTest {
         assertTrue("循环终点不能太小，否则诗一闪而过", end > 0.5f);
 
         // 在 (0, end) 区间内密集取样：两行必须同时有字。
-        //
-        // 起点 0 不算：那时诗句刚好贴着画布右沿、完全在屏外，
-        // 两行都是空的 —— 这是「还没进场」，不是「不同步」。
+        // 起点 0 不算：那时诗句完全在屏外，是「还没进场」而不是不同步。
         int samples = 0;
         for (int i = 1; i < 400; i++) {
             float p = end * i / 400f;
@@ -99,11 +85,7 @@ public class PreviewClockTest {
         assertTrue("取样数异常", samples > 300);
     }
 
-    /**
-     * 反证：如果循环仍然按整条轨道 {@code [0,1]} 走，就会出现只有一行有字的时段。
-     *
-     * 这条用来说明「为什么必须引入 cycleEnd」，同时防止有人把它改回去。
-     */
+    /** 反证：若循环仍按整条轨道 [0,1] 走，会出现只有一行有字的时段。 */
     @Test
     public void fullTrackCycleWouldLeaveTheWormholeRowEmpty() {
         float canvasW = 1200f;
@@ -127,7 +109,7 @@ public class PreviewClockTest {
         assertTrue("按整条轨道循环时，必须真的存在「只有隧道行有字」的时段"
                         + "（否则 cycleEnd 就没有必要了）", onlyTunnel > 0);
 
-        // 而收缩到 cycleEnd 之后，这个时段必须完全消失。
+        // 收缩到 cycleEnd 之后，这个时段必须完全消失。
         int onlyTunnelAfter = 0;
         for (int i = 1; i < 400; i++) {
             float p = end * i / 400f;
@@ -143,18 +125,18 @@ public class PreviewClockTest {
         assertEquals("收缩后不得有单行时段", 0, onlyTunnelAfter);
     }
 
-    /** 没有虫洞时，循环终点就是整条轨道（两行本来就会同时走空）。 */
+    /** 没有虫洞时，循环终点就是整条轨道。 */
     @Test
     public void cycleEndIsFullTrackWhenThereIsNoWormhole() {
         assertEquals(1f, PreviewClock.cycleEnd(1200f, 780f, 0f), 0.0001f);
     }
 
-    /** 退化输入不得让循环卡死（终点为 0 会让进度永远不动）。 */
+    /** 退化输入不得让循环卡死。 */
     @Test
     public void cycleEndIsSafeForDegenerateInputs() {
         float end = PreviewClock.cycleEnd(100f, 100f, 500f);
         assertTrue("终点必须为正", end > 0f);
-        // 洞比整条轨道还宽时，仍然要给出一个可动的最小范围。
+        // 洞比整条轨道还宽时，仍要给出可动的最小范围。
         assertEquals(0.02f, end, 0.0001f);
     }
 

@@ -30,12 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.rude56.poemstatus.R
 
-/**
- * LSPosed 连接状态：装好了、开关也开了但状态栏没反应时，给出排查方向。
- *
- * @param connected  SystemUI 最近是否来读过配置
- * @param secondsAgo 距离上次读取过了多少秒（connected 为 false 时无意义）
- */
+/** LSPosed 连接状态：装好了、开关也开了但状态栏没反应时，给出排查方向。 */
 @Composable
 fun ConnectionCard(
     connected: Boolean,
@@ -88,7 +83,6 @@ fun ConnectionCard(
                 )
                 if (!connected) {
                     Spacer(Modifier.height(8.dp))
-                    // 三步排查，按「最常见的先写」排序。
                     listOf(
                         R.string.lsp_step_enable,
                         R.string.lsp_step_scope,
@@ -116,10 +110,7 @@ fun ConnectionCard(
     }
 }
 
-/**
- * 配置速览：把当前最关键的几项设置压成一行，只读、不跳转。
- * 目的是一眼确认「现在是什么配置」，比如突然觉得诗滚太快，扫一眼就知道速度是多少。
- */
+/** 配置速览：把当前最关键的几项设置压成一行，只读、不跳转，一眼确认「现在是什么配置」。 */
 @Composable
 fun ConfigSummaryCard(
     speedPx: Int,

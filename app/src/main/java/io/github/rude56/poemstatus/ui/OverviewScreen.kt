@@ -59,7 +59,6 @@ fun OverviewScreen(context: Context) {
     val enabledPoems = poems.count { it.enabled }
 
     // LSPosed 连接状态：SystemUI 每 2 秒来读一次配置，这里也按 2 秒刷新即可。
-    //
     // 必须绑到 STARTED 生命周期：`LaunchedEffect { while(true) }` 只在组合销毁时才停，
     // 而 Activity 退到后台时组合还活着 —— 会变成「在后台每 2 秒醒一次、写 state、触发不可见的重组」。
     var secondsAgo by remember { mutableLongStateOf(-1L) }
@@ -77,7 +76,6 @@ fun OverviewScreen(context: Context) {
             }
         }
     }
-    // 超过 10 秒没来读就算断开（正常是 2 秒一次，留 5 倍余量）。
     val connected = secondsAgo in 0..10
 
     Column(
@@ -96,21 +94,18 @@ fun OverviewScreen(context: Context) {
             },
         )
 
-        // 连接自检：这是「装好了却没反应」的第一诊断位，放在开关正下方。
         Spacer(Modifier.height(12.dp))
         ConnectionCard(
             connected = connected,
             secondsAgo = if (secondsAgo < 0) 0 else secondsAgo,
         )
 
-        // 开关打开但没法播放时，直接说清缺什么，而不是让用户自己猜。
         val blocker = blockerText(cfg.enabled, poems.size, enabledPoems)
         if (blocker != null) {
             Spacer(Modifier.height(12.dp))
             HintRow(blocker)
         }
 
-        // 配置速览：一眼确认「现在是什么配置」。
         SectionHeader(stringResource(R.string.summary_title))
         ConfigSummaryCard(
             speedPx = cfg.speedPx,
@@ -171,7 +166,6 @@ private fun MasterCard(enabled: Boolean, subtitle: String, onToggle: (Boolean) -
         onClick = { onToggle(!enabled) },
     ) {
         Column(Modifier.padding(20.dp)) {
-            // 状态胶囊
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
@@ -192,7 +186,6 @@ private fun MasterCard(enabled: Boolean, subtitle: String, onToggle: (Boolean) -
                 )
             }
             Spacer(Modifier.height(12.dp))
-            // 标题 + 开关
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(R.string.enable_module),
@@ -203,7 +196,6 @@ private fun MasterCard(enabled: Boolean, subtitle: String, onToggle: (Boolean) -
                 Switch(checked = enabled, onCheckedChange = onToggle)
             }
             Spacer(Modifier.height(6.dp))
-            // 说明单独一行，不被开关挤压
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodyMedium,
@@ -273,7 +265,6 @@ private fun HintRow(text: String) {
     }
 }
 
-// ---------------------------------------------------------------- 辅助
 
 private fun statusLine(enabled: Boolean, total: Int, enabledCount: Int): String = when {
     !enabled -> "打开后，诗句会从状态栏右侧滚入"

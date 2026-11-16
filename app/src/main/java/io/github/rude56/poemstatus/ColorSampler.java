@@ -9,26 +9,16 @@ import android.widget.TextView;
  */
 final class ColorSampler {
 
-    /**
-     * 兜底轮询间隔：仅用于 {@link TintState} 拿不到任何数据的降级路径。
-     *
-     * 正常情况下这个定时器根本不会启动。
-     */
+    /** 兜底轮询间隔：仅用于 {@link TintState} 拿不到任何数据的降级路径，正常不启动。 */
     private static final long SAMPLE_INTERVAL_MS = 2000L;
 
     /**
-     * 推送合流窗口。
-     *
-     * 系统图标色切换是带动画的，{@code applyIconTint} 在动画期间每帧都会调一次。
-     * 250ms 足够覆盖整段动画，又明显短于人眼能察觉的延迟。
+     * 推送合流窗口：图标色切换带动画，{@code applyIconTint} 动画期间每帧调一次，
+     * 250ms 覆盖整段动画又短于人眼可察觉的延迟。
      */
     private static final long COALESCE_MS = 250L;
 
-    /**
-     * 取色诊断日志的最短间隔。
-     *
-     * 取色是稳定状态，5 分钟一行足够定位问题，又不至于把 logd 写满。
-     */
+    /** 取色诊断日志的最短间隔：取色是稳定状态，5 分钟一行足够定位问题又不写满 logd。 */
     private static final long DIAG_LOG_MS = 300_000L;
 
     private final android.os.Handler handler =
@@ -67,8 +57,7 @@ final class ColorSampler {
                 tint, clockColor, readLightStatusBars(statusContainer), moduleColor);
         boolean changed = r.color != cachedColor;
         cachedColor = r.color;
-        // 诊断只在「来源变了」且间隔够久时打一条：系统切换图标色是带动画的，
-        // 颜色值会连续变化几十次，逐条打日志等于把 logd 写满。
+        // 只在「来源变了」且间隔够久时打一条：图标色切换是带动画的，逐条打日志会写满 logd。
         long now = android.os.SystemClock.elapsedRealtime();
         if (r.source != lastLoggedSource || now - lastLogAt > DIAG_LOG_MS) {
             lastLoggedSource = r.source;
@@ -84,10 +73,8 @@ final class ColorSampler {
     }
 
     /**
-     * 系统状态栏外观变了（由 {@link TintState} 推送）。
-     *
-     * 必须合流：图标色切换带动画，{@code applyIconTint} 在动画期间每帧调一次，
-     * 逐条重采样等于把轮询提到 60 次/秒。所以只置「待采样」标记，250ms 后统一取稳定值。
+     * 系统状态栏外观变了（由 {@link TintState} 推送）。必须合流：只置「待采样」标记，
+     * 250ms 后统一取稳定值，否则逐条重采样等于把轮询提到 60 次/秒。
      */
     void onSystemTintChanged() {
         if (pendingSample) {
@@ -121,10 +108,7 @@ final class ColorSampler {
     };
 
     /**
-     * 系统算好的「状态栏该用深字还是浅字」。
-     *
-     * 优先用 Hook 抄下来的结果（{@link TintState}），它由系统在自己的
-     * {@code LightBarControllerImpl} 里算出，切换应用就会更新；
+     * 系统算好的「状态栏该用深字还是浅字」：优先用 Hook 抄下的 {@link TintState}，
      * 拿不到才退回当前窗口的 {@code getSystemBarsAppearance()}。
      */
     private static Boolean readLightStatusBars(View statusContainer) {
@@ -151,9 +135,7 @@ final class ColorSampler {
         }
     }
 
-    /**
-     * 原生时钟文字色。弱引用缓存：{@code findClock()} 是整棵树的递归 DFS，而采样是周期性动作。
-     */
+    /** 原生时钟文字色；弱引用缓存，因为 {@code findClock()} 是整棵树递归 DFS 而采样是周期性动作。 */
     private int readClockColor(View contentRoot) {
         try {
             View clock = clockRef == null ? null : clockRef.get();
@@ -167,15 +149,11 @@ final class ColorSampler {
                 return ((TextView) clock).getCurrentTextColor();
             }
         } catch (Throwable ignored) {
-            // 交给下一级。
         }
         return ColorResolver.ABSENT;
     }
 
-    /**
-     * 状态栏内任一可见文字控件的文字色。
-     * 某些 ROM 把时钟换成其它控件，此时退到这一级仍然读的是真实在用颜色。
-     */
+    /** 状态栏内任一可见文字控件的文字色；某些 ROM 把时钟换成其它控件，退到这一级仍读真实在用颜色。 */
     private int readAnyModuleTextColor(View contentRoot) {
         try {
             TextView hit = textRef == null ? null : textRef.get();
@@ -189,13 +167,12 @@ final class ColorSampler {
                 return hit.getCurrentTextColor();
             }
         } catch (Throwable ignored) {
-            // 交给下一级。
         }
         return ColorResolver.ABSENT;
     }
 
     /**
-     * 开始跟踪颜色变化。正常路径只注册 {@link TintState} 推送、不启动定时器；
+     * 开始跟踪颜色变化：正常路径只注册 {@link TintState} 推送、不启动定时器；
      * 推送源完全不可用（Hook 没装上）才启动 2 秒一次的兜底轮询。
      */
     void startTracking(Runnable changed) {

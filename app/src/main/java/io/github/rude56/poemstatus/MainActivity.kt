@@ -16,7 +16,6 @@ import io.github.rude56.poemstatus.ui.theme.PoemTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 边到边显示：内容延伸到状态栏/导航栏下面，由 Scaffold 的 inset 处理避让。
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(
                 android.graphics.Color.TRANSPARENT,
@@ -41,7 +40,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 回到前台时刷新一次，避免其它进程（或自己刚才的写操作）造成展示滞后。
         AppState.reload(this)
     }
 }

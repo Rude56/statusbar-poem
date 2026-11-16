@@ -52,8 +52,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 白名单（二级页）：这些应用在前台时暂停滚动。
- * 顶部搜索框即时过滤；已选应用固定在列表最上方；点整行即勾选，不必精确点中复选框。
+ * 白名单（二级页）：这些应用在前台时暂停滚动。顶部搜索框即时过滤；已选应用固定在列表最上方；
+ * 点整行即勾选，不必精确点中复选框。
  */
 @Composable
 fun WhitelistScreen(context: Context) {
@@ -79,8 +79,7 @@ fun WhitelistScreen(context: Context) {
     }
 
     val selected = cfg.whitelist
-    // 已选应用置顶：选完一个不用再翻回去找它，取消时也不用滚回上面。
-    // 组内各自按名称排序，位置稳定（不会因为勾选而整体跳动）。
+    // 已选应用置顶：选完一个不用再翻回去找它；组内各自按名称排序，位置稳定（不会因为勾选而整体跳动）。
     val filtered = remember(query, apps, selected) {
         val matched = apps.filter {
             query.isBlank() ||
@@ -107,7 +106,6 @@ fun WhitelistScreen(context: Context) {
             shape = MaterialTheme.shapes.large,
         )
 
-        // 已选摘要
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -187,7 +185,6 @@ private fun AppRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 首字母头像，省去加载真实图标（避免一次读几百个 Drawable）。
         Surface(
             modifier = Modifier.size(36.dp),
             shape = CircleShape,
@@ -243,7 +240,6 @@ private fun loadApps(context: Context): List<AppState.AppEntry> {
             out.add(AppState.AppEntry(pkg, label))
         }
     } catch (t: Throwable) {
-        // 包可见性受限时退回全量列表。
     }
     if (out.isEmpty()) {
         try {

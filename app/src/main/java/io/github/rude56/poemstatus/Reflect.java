@@ -22,7 +22,6 @@ final class Reflect {
                 return Class.forName(name, false, cl);
             }
         } catch (Throwable ignored) {
-            // 继续试下一个来源。
         }
         try {
             return Class.forName(name);
@@ -33,9 +32,7 @@ final class Reflect {
 
     /**
      * 按「方法名 + 参数类型名」找方法。数组参数两种写法都接受：{@code Class.getName()} 返回 JVM 描述符
-     * {@code [La.b.C;}，源码写法是 {@code a.b.C[]}，只比一种会静默匹配失败。
-     *
-     * @param paramNames 参数类型名；{@code null} 表示该位置不校验类型
+     * {@code [La.b.C;}，源码写法是 {@code a.b.C[]}，只比一种会静默匹配失败；{@code paramNames} 为 null 表示不校验。
      */
     static Method findMethod(Class<?> cls, String name, String... paramNames) {
         if (cls == null || name == null) {

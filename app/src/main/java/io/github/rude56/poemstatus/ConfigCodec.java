@@ -41,7 +41,6 @@ public final class ConfigCodec {
             o.put(ConfigKeys.HOLE_MODE, cfg.holeMode);
             o.put(ConfigKeys.CONFIG_REVISION, cfg.configRevision);
         } catch (Throwable ignored) {
-            // 纯字符串/布尔/整型写入，Android 的 org.json 不会抛；兜底防御。
         }
         return o.toString();
     }

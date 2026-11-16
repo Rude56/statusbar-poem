@@ -39,14 +39,12 @@ import io.github.rude56.poemstatus.PreviewClock
 import io.github.rude56.poemstatus.R
 
 /**
- * 洞的两种穿越方式样例：两个写死的同位置洞，各演示一种模式，不跟随用户配置。
+ * 洞的两种穿越方式样例：两个写死的同位置洞，各演示一种模式，不跟随用户配置。白底黑字固定配色。
  * 两行必须严格同步：时间与位置全部来自 [PreviewClock]，任何一行自己算时间或取整都会让画面对不上且不报错。
- * 白底黑字固定配色，不随主题变 —— 状态栏在浅色壁纸下就是白底黑字。
  */
 @Composable
 fun HoleModeSamples(modifier: Modifier = Modifier) {
     val text = stringResource(R.string.hole_preview_text)
-    // 白底黑字：固定色，不随主题变。
     val bg = Color.White
     val fg = Color(0xFF1A1C1E)
 
@@ -55,8 +53,7 @@ fun HoleModeSamples(modifier: Modifier = Modifier) {
     val paint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-            // 必须用 sp 不能用 dp：运行时画笔是 13 * scaledDensity（即 13sp），
-            // 用 dp 时系统字体缩放 ≠ 1 预览就比真实偏小。
+            // 必须用 sp 不能用 dp：运行时画笔是 13 * scaledDensity，用 dp 时字体缩放 ≠ 1 预览就偏小。
             textSize = with(density) { 13.sp.toPx() }
         }
     }
@@ -64,7 +61,6 @@ fun HoleModeSamples(modifier: Modifier = Modifier) {
 
     // 画布宽度由两行共同报告（取最小值，保证两边都不越界）。
     var canvasWidth by remember { mutableFloatStateOf(0f) }
-    // 洞宽（像素）：由画布宽度按 30%–62% 算出。
     val wormholeWidth = canvasWidth * (HOLE_RIGHT_FRAC - HOLE_LEFT_FRAC)
 
     // 一轮循环的终点：必须在两行都还有字的范围内，见 PreviewClock.cycleEnd。
@@ -78,19 +74,17 @@ fun HoleModeSamples(modifier: Modifier = Modifier) {
     var progress by remember { mutableFloatStateOf(0.40f) }
     LaunchedEffect(cycleEnd) {
         // 用 withFrameNanos 按时间推进并节流到约 30fps，不能按帧数累加：
-        // 每帧加固定增量会让速度跟着屏幕刷新率变（120Hz 与 60Hz 的周期不同）。
+        // 每帧加固定增量会让速度跟着屏幕刷新率变（不同刷新率的帧周期不同）。
         var lastDraw = 0L
         var start = 0L
         while (true) {
             val now = withFrameNanos { it }
             if (start == 0L) {
-                // 从初值 progress 处起步，避免进页面第一眼跳一下。
                 start = now - (progress * PreviewClock.CYCLE_NANOS).toLong()
             }
             if (now - lastDraw < 33_000_000L) continue   // 约 30fps
             lastDraw = now
             val p = PreviewClock.progressAt(now - start, PreviewClock.CYCLE_NANOS)
-            // 把 [0,1) 映射到 [0, cycleEnd)：到点立刻回到 0，两行永远同时在场。
             progress = p * cycleEnd
         }
     }
@@ -155,7 +149,6 @@ private fun SampleRow(
         Box(
             Modifier
                 .fillMaxWidth()
-                // 34dp：比状态栏略高一点，够看清字，又不占太多竖向空间。
                 .height(34.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(bg),
@@ -189,7 +182,6 @@ private fun SampleCanvas(
 ) {
     paint.color = fg.toArgb()
 
-    // 帧内零分配：洞对象与三个输出数组都提到 remember 里复用。
     val hole = remember {
         HoleRects.Hole(0, 0, HoleRects.Mode.WORMHOLE)
     }
@@ -201,11 +193,8 @@ private fun SampleCanvas(
     Canvas(modifier) {
         val w = size.width
         val h = size.height
-        // 报告宽度：两行取最小值，保证共用同一个坐标系。
         onWidth(w)
-        // 文字宽度用共用画笔测量，与时钟算 cycleEnd 时是同一个值。
         val textW = paint.measureText(text)
-        // 轨道位置与运行时同一个公式（PreviewClock.trackLeft）。
         val left = PreviewClock.trackLeft(w, textW, progress)
         val right = left + textW
 
@@ -219,13 +208,11 @@ private fun SampleCanvas(
             val baseline = h / 2f - (paint.descent() + paint.ascent()) / 2f
 
             if (mode == HoleRects.Mode.TUNNEL) {
-                // 隧道：位置不动，洞里不画。
                 val save = canvas.save()
                 canvas.clipOutRect(holeLeft, 0f, holeRight, h)
                 canvas.drawText(text, left, baseline, paint)
                 canvas.restoreToCount(save)
             } else {
-                // 虫洞：洞那段屏幕被抽掉，字到洞口瞬移到另一侧。
                 holeList[0] = hole.withRange(holeLeft.toInt(), holeRight.toInt())
                 val n = HoleRects.wormholeSegments(
                     holeList, left, right, 0, segScreen, segText, segWidth, 2,
@@ -245,9 +232,6 @@ private fun SampleCanvas(
             }
         }
 
-        // 洞口标记画在最上层，两种模式都用同一个样式，便于对齐比较。
-        // 洞内用很淡的灰：白底上要能看出「这一段被处理过」，
-        // 但不能抢走文字的对比度。
         drawRect(
             color = Color(0xFF1A1C1E).copy(alpha = 0.06f),
             topLeft = Offset(holeLeft, 0f),

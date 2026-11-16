@@ -32,18 +32,11 @@ final class SystemUiController {
     private static final long IDLE_POLL_MS = 30000L;
     private static final long STAT_LOG_INTERVAL_MS = 60000L;
     /**
-     * 心跳间隔。
-     *
-     * 心跳只是「事件丢了」的最后一道保险：旋转由 {@link ComponentCallbacks#onConfigurationChanged}
-     * 主动置脏，亮屏/锁屏有广播，配置变化有 ContentObserver，都不依赖轮询。
+     * 心跳间隔。心跳只是「事件丢了」的最后一道保险：旋转有 ComponentCallbacks、亮灭屏有广播、
+     * 配置变化有 ContentObserver，都不依赖轮询。
      */
     private static final long HEARTBEAT_MS = 8000L;
-    /**
-     * 已关闭模块时的心跳间隔。
-     *
-     * 关着的时候唯一可能变的就是「用户把开关打开了」，而那一定会触发
-     * ContentObserver；心跳只是丢了事件时的保险，没必要 8 秒一次。
-     */
+    /** 模块已关闭时的心跳间隔：唯一可能变的是用户打开开关，那一定会触发 ContentObserver。 */
     private static final long IDLE_HEARTBEAT_MS = 30000L;
 
     private static SystemUiController instance;
@@ -108,14 +101,13 @@ final class SystemUiController {
             } else if (Intent.ACTION_SCREEN_ON.equals(a) || Intent.ACTION_USER_PRESENT.equals(a)) {
                 screenInteractive = true;
             }
-            // 亮屏/解锁/锁屏都要重算一次锁屏状态（这是事件驱动，不是轮询）。
+            // 亮屏/解锁/锁屏都要重算一次锁屏状态（事件驱动，不是轮询）。
             if (Intent.ACTION_SCREEN_OFF.equals(a) || Intent.ACTION_SCREEN_ON.equals(a)
                     || Intent.ACTION_USER_PRESENT.equals(a)) {
                 lockscreenState = null;
                 refreshLockscreenState();
             }
-            // 熄屏要「撤掉所有定时器」，亮屏要「把它们装回来」。
-            // screen-off 分支里 scheduleHeartbeat() 会直接返回，所以这里统一调一次即可。
+            // 熄屏要撤掉所有定时器，亮屏要装回来：screen-off 分支里 scheduleHeartbeat() 直接返回，统一调一次即可。
             scheduleHeartbeat();
             // 熄屏期间降级的前台轮询也要立刻恢复/停止。
             syncForegroundPolling();
@@ -123,9 +115,7 @@ final class SystemUiController {
         }
     };
 
-    /**
-     * 旋转等配置变化：立刻置脏。关掉「横屏暂停」时尤其重要 —— 旋转后必须重新绑定内容根原点。
-     */
+    /** 旋转等配置变化：立刻置脏。关掉「横屏暂停」时尤其重要 —— 旋转后必须重新绑定内容根原点。 */
     private final ComponentCallbacks configCallbacks = new ComponentCallbacks() {
         @Override
         public void onConfigurationChanged(Configuration newConfig) {
@@ -185,13 +175,8 @@ final class SystemUiController {
     }
 
     /**
-     * 抓状态栏外观位（诗句颜色的唯一来源）。
-     *
-     * Hook {@code LightBarControllerImpl.onStatusBarAppearanceChanged}：系统把「当前应用背景
-     * 该配浅字还是深字」算好后一定会走这里，我们从 {@code AppearanceRegion.getAppearance()}
-     * 把结果抄下来，不依赖任何亮度推断，也不需要定时轮询。
-     *
-     * 同时在 {@code applyIconTint} 后兜一份 tint：某些 ROM 上它是有效的。
+     * 抓状态栏外观位（诗句颜色的唯一来源）：抄 {@code AppearanceRegion.getAppearance()}，
+     * 不依赖亮度推断、也不需要定时轮询；另在 {@code applyIconTint} 后兜一份 tint（某些 ROM 上有效）。
      */
     private void hookStatusBarTint(ClassLoader cl) {
         hookAppearanceRegions(cl);
@@ -227,15 +212,8 @@ final class SystemUiController {
     }
 
     /**
-     * Hook {@code View.draw(Canvas)}，在内容根上挖洞。
-     *
-     * 只在内容根上挖洞：clip 是画布状态，会随 save/restore 传给所有子孙，
-     * 所以时钟、图标、通知点无论原生还是 Compose 画的，一次裁剪全部穿透。
-     * 逐个 View 改 alpha 做不到这一点 —— Compose 把图标画在同一块画布上，改 alpha 会被系统改回去。
-     *
-     * 注意：{@code Clock} 自己并没有重写 {@code onDraw}，{@code TextView.draw} 也解析不到
-     * 精确签名，{@code View} 才是 {@code draw} 的定义处，因此这里遍历 {@code View} 的
-     * {@code draw} 重载来挂。
+     * Hook {@code View.draw(Canvas)}，在内容根上挖洞 —— 这是唯一能穿透 Compose 的挖洞点：clip 是画布状态、
+     * 随 save/restore 传给所有子孙，改 alpha 做不到（Compose 把图标画在同一块画布上）。
      */
     private void hookContentRootDraw(ClassLoader cl) {
         try {
@@ -262,9 +240,8 @@ final class SystemUiController {
                     return chain.proceed();
                 }
                 android.graphics.Canvas canvas = (android.graphics.Canvas) chain.getArg(0);
-                // 必须记住 beginClip 的返回值：只有真的挖了洞才允许 endClip。
-                // 无条件调 endClip 会弹掉别人压进去的那一层 —— 画布状态一旦错配，
-                // 裁剪就会永久留在内容根上（图标缺一块，重启才恢复）。
+                // 必须记住 beginClip 的返回值：只有真的挖了洞才允许 endClip。无条件调会弹掉别人压进去的那层，
+                // 画布状态一旦错配，裁剪就永久留在内容根上（图标缺一块，重启才恢复）。
                 boolean clipped = false;
                 try {
                     clipped = HolePuncher.beginClip(canvas, (View) self);
@@ -292,10 +269,7 @@ final class SystemUiController {
     }
 
     /**
-     * 直接抄系统算好的状态栏外观。
-     *
-     * {@code onStatusBarAppearanceChanged(AppearanceRegion[], ...)} 的每个区域都带
-     * {@code appearance} 位，{@code APPEARANCE_LIGHT_STATUS_BARS} 置位表示「浅色背景 + 深色字」。
+     * 直接抄系统算好的状态栏外观：{@code APPEARANCE_LIGHT_STATUS_BARS} 置位表示「浅色背景 + 深色字」。
      * 只读参数、不改系统行为、不增加任何定时器。
      */
     private void hookAppearanceRegions(ClassLoader cl) {
@@ -310,9 +284,7 @@ final class SystemUiController {
                     "com.android.internal.view.AppearanceRegion[]",
                     boolean.class.getName(), boolean.class.getName(), boolean.class.getName());
             if (m == null) {
-                // 兜底：不同 ROM 的签名略有差异（数组类型名、参数个数）。现代 libxposed API
-                // 没有 findAndHookMethod 那种按名字+参数个数匹配的便利，所以这里自己退一步：
-                // 按「名字 + 4 个参数且首参是数组」找。
+                // 兜底：不同 ROM 签名略有差异（数组类型名、参数个数），按「名字 + 4 个参数且首参是数组」找。
                 m = Reflect.findMethodLoose(cls, "onStatusBarAppearanceChanged", 4, true);
             }
             if (m == null) {
@@ -348,8 +320,7 @@ final class SystemUiController {
     }
 
     private void onStatusBarAttached(View window) {
-        // 基准必须是状态栏窗口本身：它的高度就是状态栏条带高度，
-        // 宽高在 attach 之后才有效，所以内容 View 只用于找层次，不用于取尺寸。
+        // 基准必须是状态栏窗口本身：它的高度就是状态栏条带高度，宽高在 attach 之后才有效。
         statusRef = new WeakReference<>(window);
         runtime.setStatusContainer(window);
         Context ctx = window.getContext();
@@ -384,8 +355,7 @@ final class SystemUiController {
         try {
             foreground = new ForegroundTracker(context, pkg -> {
                 foregroundPackage = pkg;
-                // 前台切换是「白名单是否暂停」的唯一依据：必须留一条日志，
-                // 否则白名单失效时完全无从判断（是没解析出来，还是没命中）。
+                // 前台切换是「白名单是否暂停」的唯一依据：必须留一条日志，否则白名单失效时无从判断。
                 if (Log.allow("foreground", 5000L)) {
                     Log.i("CONF foreground=" + pkg
                             + (config.isWhitelisted(pkg) ? " (whitelisted -> pause)" : ""));
@@ -400,9 +370,8 @@ final class SystemUiController {
     }
 
     /**
-     * 让前台轮询跟上「白名单是否非空」与「屏幕是否亮着」。
-     *
-     * 熄屏后前台是谁毫无意义，必须停掉轮询，否则黑屏时仍会周期性地反射查前台应用。
+     * 让前台轮询跟上「白名单是否非空」与「屏幕是否亮着」：熄屏后前台是谁毫无意义，必须停掉轮询，
+     * 否则黑屏时仍会周期性地反射查前台应用。
      */
     private void syncForegroundPolling() {
         ForegroundTracker fg = foreground;
@@ -428,11 +397,8 @@ final class SystemUiController {
     }
 
     /**
-     * 锁屏状态变化回调。
-     *
-     * 只注册广播是不够的：解锁（KEYCODE_MENU / 上滑）不一定伴随
-     * ACTION_USER_PRESENT，模块会一直停在 paused。这里挂 KeyguardManager 的
-     * 状态回调，锁屏一出现/消失就重算一次，仍然是事件驱动、零轮询。
+     * 锁屏状态变化回调。只注册广播不够：解锁（KEYCODE_MENU / 上滑）不一定伴随 ACTION_USER_PRESENT，
+     * 模块会一直停在 paused。挂 KeyguardManager 回调后仍是事件驱动、零轮询。
      */
     private void registerKeyguardCallback() {
         try {
@@ -455,11 +421,7 @@ final class SystemUiController {
 
     /**
      * 合并处理触发：把 tick 排进主线程消息队列（同一时刻最多一个）。
-     *
-     * 同时挂一个低频「心跳」：只有模块开启或还没成功拉到配置时才会续期，
-     * 用来兜住「ContentObserver / 配置变化回调都没送到」的极端情况。
-     * 心跳间隔 {@link #HEARTBEAT_MS}，且拉配置本身还有分档节流，
-     * 所以实际 IPC 频率远低于心跳频率；模块关闭时心跳自动停止、零唤醒。
+     * 心跳只兜「ContentObserver / 配置变化回调都没送到」的极端情况，且拉配置本身还有分档节流。
      */
     private void markDirty() {
         if (dirty) {
@@ -479,14 +441,8 @@ final class SystemUiController {
     };
 
     /**
-     * 决定心跳是否续期，并算出这次该睡多久。
-     *
-     * 分三档：
-     * 熄屏 —— 完全不续期。亮屏有广播，任务栈变化有监听，配置变化有 ContentObserver，
-     * 不存在「只能靠心跳才发现」的事件。
-     * 模块关闭 —— 30 秒。这时唯一还可能变的就是「用户打开了开关」，
-     * 而那个动作会触发 ContentObserver，心跳只是最后一道保险。
-     * 正常播放 —— 8 秒，用来兜住丢了的事件。
+     * 决定心跳是否续期并算出这次睡多久。分三档：熄屏 0（完全不续期，亮屏广播会重新拉起）／
+     * 模块关闭 30s（唯一可能变的是用户打开开关，那一定会触发 ContentObserver）／正常 8s（兜住丢了的事件）。
      */
     private void scheduleHeartbeat() {
         handler.removeCallbacks(heartbeatRunnable);
@@ -509,12 +465,8 @@ final class SystemUiController {
     }
 
     /**
-     * 观测状态栏「是否真的可见」，只在变化时打一条日志。
-     *
-     * 不能直接拿它当暂停条件：{@code isShown()} 在全屏沉浸式应用里为 false
-     * （该暂停），但下拉通知面板盖住状态栏时也为 false（该继续）。两种情形单看这一个
-     * 布尔值分不开，区分它们需要 {@code StatusBarState} 之类的系统内部状态，风险更高。
-     * 所以这里只采集，绝不让一个没验证过的条件去控制播放。
+     * 观测状态栏「是否真的可见」，只在变化时打一条日志。不能拿它当暂停条件：全屏沉浸式应用里
+     * {@code isShown()} 为 false（该暂停），下拉通知面板盖住时也为 false（该继续），单看这一个布尔值分不开。
      */
     private void noteStatusBarVisibility(View container) {
         boolean shown = container.isShown();
@@ -562,8 +514,7 @@ final class SystemUiController {
 
         String pauseReason = pauseReason();
         if (pauseReason != null) {
-            // 只在「暂停原因变化」时打日志：暂停态心跳仍会跑，
-            // 每次打一条会让 logd 常驻写入，白白耗电。
+            // 只在「暂停原因变化」时打日志：暂停态心跳仍会跑，每次打一条会让 logd 常驻写入，白白耗电。
             if (!pauseReason.equals(lastTickPauseReason)) {
                 lastTickPauseReason = pauseReason;
                 Log.d("POEM tick pause=" + pauseReason + " enabled=" + config.enabled
@@ -597,12 +548,7 @@ final class SystemUiController {
         return null;
     }
 
-    /**
-     * 锁屏判定。优先用 SystemUI 自己的状态（类名反射，进程内、零 IPC），
-     * 拿不到才退回 KeyguardManager.isKeyguardLocked()。
-     *
-     * 只在 tick 里调用（配置/广播/任务变化触发），不做轮询。
-     */
+    /** 锁屏判定：优先用 SystemUI 自己的状态（类名反射，进程内零 IPC），拿不到才退回 KeyguardManager。 */
     private boolean lockscreenPauseActive() {
         if (!config.lockscreenPause) {
             return false;
@@ -635,10 +581,8 @@ final class SystemUiController {
     }
 
     /**
-     * 方向与布局尺寸变化检测。
-     *
-     * 状态栏宽高变化（旋转、折叠屏切换、显示尺寸调整）时走到
-     * {@link PoemRuntime#onLayoutChanged()}，重新绑定内容根的屏幕矩形；不重绑会让遮挡整体偏移。
+     * 方向与布局尺寸变化检测：状态栏宽高变化（旋转、折叠屏切换、显示尺寸调整）时走到
+     * {@link PoemRuntime#onLayoutChanged()} 重绑内容根屏幕矩形，不重绑会让遮挡整体偏移。
      */
     private void updateOrientation(View container) {
         try {
@@ -675,11 +619,8 @@ final class SystemUiController {
     }
 
     /**
-     * 洞配置。
-     *
-     * 解析 {@code holesJson}，喂给诗句层与挖洞层。本方法会被心跳 tick 反复调用，
-     * 所以必须去重 —— 否则每个心跳都会重新解析、给每个洞 new int[]、
-     * 最后 invalidate 整个诗句层。
+     * 洞配置：解析 {@code holesJson} 喂给诗句层与挖洞层。本方法会被心跳 tick 反复调用，必须去重，
+     * 否则每个心跳都会重新解析、给每个洞 new int[]、最后 invalidate 整个诗句层。
      */
     private void refreshCutout(View container) {
         final int barH = container.getHeight() > 0 ? container.getHeight() : 112;
@@ -699,34 +640,26 @@ final class SystemUiController {
     }
 
     /**
-     * 配置读取。省电策略：
-     * 正常路径 —— App 保存后 notifyChange，这里的 ContentObserver 收到一次后立即读一次。
-     * 观察者注册失败才退回 2 秒轮询，且只在「前台是本 App」时才这么勤。
-     * 读取失败（App 未启动 / Provider 不存在）保留上一份有效配置，不崩溃。
+     * 配置读取：正常路径是 ContentObserver 收到一次就读一次；注册失败才退回 2 秒轮询（且只在
+     * 前台是本 App 时才这么勤）。读取失败保留上一份有效配置，不崩溃。
      */
     private void maybeReloadConfig() {
         long now = System.currentTimeMillis();
         if (configFetchInFlight) {
             return;
         }
-        // 观察者可用的正常路径：内容变化时 configDirty=true，立刻读一次。
-        // 下面的轮询只是「观察者没送到」时的兜底，因此节奏必须分档 ——
-        // 无条件每 2 秒一次跨进程 Binder call 有两个代价：
-        //   ① SystemUI 每 2 秒醒一次去读配置；
-        //   ② 更糟的是，如果本 App 进程已经死了，这次 call 会把它整个拉起来，
-        //      等于每 2 秒唤醒一个本该休眠的应用进程。
+        // 下面的轮询只是「观察者没送到」时的兜底，节奏必须分档：无条件每 2 秒一次跨进程 Binder call
+        // 会让 SystemUI 每 2 秒醒一次，且本 App 进程已死时会被整个拉起来，等于每 2 秒唤醒一个本该休眠的应用。
         final long pollInterval;
         if (!screenInteractive) {
-            // 熄屏：不轮询，只处理「确实有变更通知」的情况 ——
-            // 跨进程 call 会把本 App 进程整个拉起来，而熄屏期间用户不会改配置，
-            // 就算改了 ContentObserver 也会送到。
+            // 熄屏：不轮询，只处理「确实有变更通知」的情况 —— 跨进程 call 会把本 App 进程整个拉起来，
+            // 而熄屏期间用户不会改配置，就算改了 ContentObserver 也会送到。
             pollInterval = Long.MAX_VALUE;
         } else if (configObserverFailed || foregroundPackage.isEmpty()) {
             // 观察者注册失败，或者还判断不出前台是谁：保守地按 2 秒轮询。
             pollInterval = FALLBACK_POLL_MS;
         } else if (FeatureAudit.SELF_PACKAGE.equals(foregroundPackage)) {
-            // 用户正开着本 App —— 概览页的「连接自检」卡片要靠这个心跳刷新，
-            // 慢了会显得迟钝，所以这里保持 2 秒。
+            // 用户正开着本 App：概览页的「连接自检」卡片靠这个心跳刷新，慢了会显得迟钝，保持 2 秒。
             pollInterval = FALLBACK_POLL_MS;
         } else {
             // 前台明确是别的应用：没有人在看连接状态，降到 30 秒。
@@ -798,8 +731,7 @@ final class SystemUiController {
         }
         lastStatLogAt = now;
         if (runtime.frameCount() > 0) {
-            // 统计只在有帧时打（暂停/时间阶段完全不产生日志），
-            // 且整行 < 80 字符 —— 这是唯一保留的周期性日志。
+            // 统计只在有帧时打（暂停/时间阶段完全不产生日志），且整行 < 80 字符 —— 这是唯一保留的周期性日志。
             Log.i("POEM stat frames=" + runtime.frameCount()
                     + " skip=" + runtime.skippedFrames()
                     + " avgMs=" + (runtime.avgFrameCostUs() / 1000f));
@@ -831,14 +763,11 @@ final class SystemUiController {
             // 取色：直接读原生状态栏正在用的文字色（不做任何反色推断）。
             View root = ViewTree.findContentRoot(container);
             colorSampler.sample(container, root);
-            // 每首都要重新挂上推送：stopCrawl 里会 stopTracking()，
-            // 而诗句层是复用的、不会重新挂载，onOverlayAttached 只发生一次 ——
-            // 如果只在那里注册，第一首之后颜色就再也不跟随深浅色应用了。
-            // startTracking 是幂等的（只是写一个字段 + 两次 volatile 读）。
+            // 每首都要重新挂上推送：stopCrawl 会 stopTracking，而诗句层复用、不会重新挂载，
+            // onOverlayAttached 只发生一次，只在那里注册的话第一首之后颜色就跟随不了深浅色切换。
             colorSampler.startTracking(tintApplier);
             runtime.setTextColor(colorSampler.color());
-            // 每首一行且带全文（几十字）是 logd 最大的单一来源，限频到 2 分钟一行；
-            // 「洞根 / 洞数」也并进来，避免同一时刻打两条。
+            // 每首一行且带全文（几十字）是 logd 最大的单一来源，限频到 2 分钟一行；「洞根 / 洞数」并进来避免同时打两条。
             if (Log.allow("poem-start", 120_000L)) {
                 Log.i("POEM start id=" + poem.id + " chars=" + poem.charCount
                         + " root=" + HolePuncher.rootName() + " holes=" + HolePuncher.holeCount()
@@ -906,10 +835,8 @@ final class SystemUiController {
     }
 
     /**
-     * 每帧遮挡回调的复用入口。
-     *
-     * 坐标写进字段、Body 只创建一次：{@code guard.guard("occlude", () -> ...)} 里的 lambda
-     * 每次调用都会捕获 4 个 float 并分配一个新对象，违反帧内零分配约束。
+     * 每帧遮挡回调的复用入口：坐标写进字段、Body 只创建一次 —— {@code guard.guard("occlude", () -> ...)}
+     * 里的 lambda 每次调用都会捕获 4 个 float 并分配新对象，违反帧内零分配约束。
      */
     private float frameL, frameT, frameR, frameB;
 
@@ -920,10 +847,8 @@ final class SystemUiController {
     private final RuntimeListener runtimeListener = new RuntimeListener();
 
     /**
-     * 取色推送的落点：只创建一次。
-     *
-     * 不捕获外部变量的 lambda 是否被 ART 缓存取决于版本，而这个对象每首都会传给
-     * {@code startTracking}，写成字段是零成本的确定性做法。
+     * 取色推送的落点：只创建一次。不捕获外部变量的 lambda 是否被 ART 缓存取决于版本，
+     * 而这个对象每首都会传给 {@code startTracking}，写成字段是零成本的确定性做法。
      */
     private final Runnable tintApplier = () -> runtime.setTextColor(colorSampler.color());
 

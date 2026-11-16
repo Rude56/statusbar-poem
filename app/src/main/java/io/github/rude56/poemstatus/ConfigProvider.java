@@ -39,13 +39,12 @@ public final class ConfigProvider extends ContentProvider {
         if (getContext() == null) {
             return null;
         }
-        // 只记录调用方确实是 SystemUI 的那些，避免 App 自己的诊断调用把连接状态误判成「已连接」。
+        // 只记录调用方确实是 SystemUI 的，避免 App 自己的诊断调用把连接状态误判成「已连接」。
         try {
             if (FeatureAudit.SCOPE_PACKAGE.equals(getCallingPackage())) {
                 lastSystemUiCallAt = android.os.SystemClock.elapsedRealtime();
             }
         } catch (Throwable ignored) {
-            // 拿不到调用方包名时不计入，宁可显示「未连接」也不要误报。
         }
         String json;
         try {

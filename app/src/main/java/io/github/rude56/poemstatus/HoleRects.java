@@ -376,15 +376,11 @@ public final class HoleRects {
     /**
      * 从一段横向区间里减掉所有隧道洞，把剩余部分追加到调用方数组。
      *
-     * 必须减：隧道里的字被遮住、屏幕上看不见，那段不该再遮挡状态栏内容。
+     * 隧道里的字被遮住、屏幕上看不见，那段不该再遮挡状态栏内容。
      * 纯函数、帧内零分配：{@code count} 是已有段数，返回值是追加后的段数。
      *
-     * @param holes    洞列表（只看隧道洞，虫洞跳过）
-     * @param from     区间左端
-     * @param to       区间右端
-     * @param outLeft  输出：每段左边界
-     * @param outRight 输出：每段右边界
-     * @param count    已写入的段数（从该下标开始追加）
+     * @param holes 洞列表（只看隧道洞，虫洞跳过）
+     * @param count 已写入的段数（从该下标开始追加）
      * @return 追加后的段数
      */
     public static int subtractTunnels(List<Hole> holes, float from, float to,
@@ -423,22 +419,15 @@ public final class HoleRects {
     /**
      * 按「文字真正画出来的位置」生成遮挡分段。
      *
-     * 裁边界是状态栏的左右沿，不是文字轨道的两端：分段位置已含虫洞位移，
-     * 拿未位移的轨道坐标去比会把「已传送到洞口左侧」的段整段丢掉。
-     * 隧道洞内的字被 {@code clipOutRect} 遮住、屏幕上看不见，由 {@link #subtractTunnels} 减掉。
+     * 裁边界是状态栏左右沿，不是文字轨道两端：分段位置已含虫洞位移，
+     * 拿未位移的轨道坐标去比会丢掉已传送到洞口左侧的段。
+     * 隧道洞内的字由 {@link #subtractTunnels} 减掉。
      *
-     * 纯函数、帧内零分配：结果写进调用方数组，与 {@link #wormholeSegments} /
-     * {@link #subtractTunnels} 同一套约定。{@code trackLeft/trackRight} 是诗句层本地坐标，
-     * 输出是屏幕坐标（内部加 {@code originX}），可直接交给 {@code HolePuncher}。
-     * 输出数组容量须 ≥ {@code (MAX_HOLES+1)²}：虫洞最多切出 {@code MAX_HOLES+1} 段，
-     * 每段再被隧道洞切成 {@code MAX_HOLES+1} 段。
+     * 纯函数、帧内零分配。{@code trackLeft/trackRight} 是诗句层本地坐标，
+     * 输出是屏幕坐标（内部加 {@code originX}）。输出数组容量须 ≥ {@code (MAX_HOLES+1)²}。
      *
-     * @param holes      洞列表（按 left 升序）
-     * @param segScreen  绘制分段：每段在状态栏本地坐标系里的起点（见 {@link #wormholeSegments}）
-     * @param segWidth   绘制分段：每段宽度
+     * @param segScreen  绘制分段：每段在状态栏本地坐标系里的起点
      * @param segCount   绘制分段数；&lt;= 0 表示没有虫洞，按整条轨道处理
-     * @param trackLeft  轨道左端（未位移，仅在没有虫洞时使用）
-     * @param trackRight 轨道右端（同上）
      * @param originX    状态栏在屏幕上的原点
      * @param barW       状态栏宽度；&lt;= 0 表示未知，此时不裁右边界
      * @param outLeft    输出：每段左边界（屏幕坐标）
@@ -494,12 +483,8 @@ public final class HoleRects {
      * 整句在屏幕上最后消失时，轨道左端会走到哪里 —— 「一首诗什么时候结束」的唯一判据。
      *
      * 不能用 {@code left + width < 0}：虫洞把整句往左瞬移一个洞宽，屏幕上最后一个字
-     * 早就消失了，轨道却还要再走一个洞宽才走完。虫洞位移是单调不减的已穿过洞宽之和，
-     * 所以临界值 = {@code -textWidth + 总虫洞宽}。
+     * 早就消失了，轨道却还要再走一个洞宽才走完。临界值 = {@code -textWidth + 总虫洞宽}。
      *
-     * 纯函数、帧内零分配。
-     *
-     * @param holes     洞列表
      * @param textWidth 诗句宽度（像素）
      * @return 轨道左端到这个值（或更小）就算整句离屏
      */
@@ -524,23 +509,15 @@ public final class HoleRects {
     /**
      * 计算虫洞的绘制分段 —— 字到洞口瞬移到另一侧，一个字都不丢。
      *
-     * 模型：洞那段屏幕不存在，文字在「抽掉了洞宽的压缩轨道」上匀速前进，
-     * 贴到屏幕时轨道坐标 u &lt; 洞左沿 → x = u，u ≥ 洞左沿 → x = u + 洞宽。
-     * 于是字跨过洞口的瞬间屏幕位置从洞右沿跳到洞左沿，字没丢，只是那段距离被压缩掉了。
-     *
-     * 一个洞的触发点不能用它的屏幕右沿：屏幕位置已被右侧的洞左移过，
-     * 换算到原始坐标要补上右侧所有洞的宽度，即
+     * 模型：洞那段屏幕不存在，文字在「抽掉了洞宽的压缩轨道」上匀速前进。
+     * 一个洞的触发点不能用它的屏幕右沿（屏幕位置已被右侧的洞左移过），
+     * 换算到原始坐标要补上右侧所有洞的宽度：
      * {@code P_j = holeRight_j + Σ{holeW_k : k 在 j 右边}}。
      *
-     * 每个分段宽度在两种坐标下相同（纯平移，不缩放），结果写入调用方数组，帧内零分配。
+     * 每个分段宽度在两种坐标下相同（纯平移，不缩放），帧内零分配。
      *
-     * @param holes       洞列表（按 left 升序，可混有 tunnel，本方法只看虫洞）
-     * @param textLeft    文字左端（屏幕/轨道一致，因为左端左侧不放洞）
-     * @param textRight   文字右端
-     * @param originX     状态栏在屏幕上的原点
      * @param segScreen   输出：每段在状态栏本地坐标系里的起点（加 {@code originX} 即屏幕坐标）
      * @param segText     输出：每段对应的轨道(文字)起点
-     * @param segWidth    输出：每段宽度
      * @param maxSegments 数组容量
      * @return 段数
      */

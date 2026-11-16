@@ -6,12 +6,7 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-/**
- * 遮挡必须跟着文字真正画出来的位置走。
- *
- * 把「文字层实际画出来的像素集合」与「遮挡层实际挖掉的像素集合」逐帧比较，
- * 前者必须被后者完整覆盖；两个集合都按真实语义构造（虫洞分段 + 隧道裁剪）。
- */
+/** 遮挡必须跟着文字真正画出来的位置走。 */
 public class OcclusionCoverageTest {
 
     private static final int BAR_W = 1440;
@@ -34,12 +29,7 @@ public class OcclusionCoverageTest {
         return HoleRects.wormholeSegments(holes, left, left + TEXT_W, 0, S, T, W, CAP);
     }
 
-    /**
-     * 文字层真正画出来的区间（屏幕坐标）。
-     *
-     * 必须与 {@code drawTextWithHoles} 一致：虫洞分段逐个 {@code clipRect} 后平移绘制，
-     * 再叠加隧道的 {@code clipOutRect}。所以这里 = 分段 ∩ 非隧道 ∩ 屏幕。
-     */
+    /** 文字层真正画出来的区间（屏幕坐标）。 */
     private static int drawnSpans(List<HoleRects.Hole> holes, float left) {
         int n = segments(holes, left);
         int k = 0;
@@ -154,9 +144,7 @@ public class OcclusionCoverageTest {
         assertEquals("整句已离屏，不该再挖洞", 0, occludedSpans(holes, left, nSeg));
     }
 
-    /**
-     * 隧道里的字不该遮挡状态栏 —— 但这条不能被「多遮一点」的实现糊过去。
-     */
+    /** 隧道里的字不得遮挡状态栏。 */
     @Test
     public void tunnelSpanIsNeverOccluded() {
         List<HoleRects.Hole> holes = HoleRects.parse("600:900:tunnel");
@@ -170,12 +158,7 @@ public class OcclusionCoverageTest {
         }
     }
 
-    /**
-     * 遮挡分段必须严格递增、两两不重叠。
-     *
-     * 重叠会让同一个区间被 {@code clipOutRect} 两次；绘制层与遮挡层的段数对不上时，
-     * 重叠就是「段被算错」的第一个信号。
-     */
+    /** 遮挡分段必须严格递增、两两不重叠。 */
     @Test
     public void occlusionSegmentsAreOrderedAndDisjoint() {
         for (String raw : new String[]{"170:270:wormhole",
@@ -199,14 +182,7 @@ public class OcclusionCoverageTest {
         }
     }
 
-    /**
-     * 状态栏不在屏幕原点时，「文字画在哪，遮挡就在哪」仍然必须成立。
-     *
-     * {@code originX = 0} 恰好是唯一能掩盖「原点被加两次 / 忘加」的取值，所以必须单独测。
-     * 注意不能简单地说「换个原点，结果应该平移」：{@code barW} 不变时，换原点等于把状态栏挪到
-     * 屏幕的另一个位置，那是另一个场景。唯一恒定成立的关系是：
-     * 遮挡段（屏幕坐标）必须等于绘制段（本地坐标）+ 原点。
-     */
+    /** 状态栏不在屏幕原点时，「文字画在哪，遮挡就在哪」仍然必须成立。 */
     @Test
     public void occlusionMatchesDrawingAtAnyOrigin() {
         for (String raw : new String[]{"170:270:wormhole", "600:900:tunnel",
@@ -233,7 +209,7 @@ public class OcclusionCoverageTest {
             int nSeg = HoleRects.wormholeSegments(holes, trackLeft, trackLeft + TEXT_W,
                     origin, segScreen, segText, segWidth, CAP);
 
-            // 绘制段（本地坐标）→ 换成屏幕坐标，并按状态栏范围裁剪。
+            // 绘制段（本地坐标）→ 屏幕坐标，并按状态栏范围裁剪。
             float[] drawnL = new float[CAP];
             float[] drawnR = new float[CAP];
             int nd = 0;
@@ -250,7 +226,6 @@ public class OcclusionCoverageTest {
             int nc = HoleRects.visibleSegments(holes, segScreen, segWidth, nSeg,
                     trackLeft, trackLeft + TEXT_W, origin, BAR_W, outL, outR);
 
-            // 把输出裁到状态栏范围，便于逐个比较。
             int nc2 = 0;
             for (int i = 0; i < nc; i++) {
                 float l = Math.max(outL[i], barL);
@@ -277,11 +252,7 @@ public class OcclusionCoverageTest {
         assertTrue("扫描帧数异常: " + frames, frames > 500);
     }
 
-    /**
-     * 状态栏不在原点时，遮挡段绝不允许越出状态栏范围。
-     *
-     * 越界意味着在状态栏外面挖了一个看不见的洞，同时本该遮住的图标没被遮住。
-     */
+    /** 遮挡段绝不允许越出状态栏范围。 */
     @Test
     public void occlusionNeverEscapesTheBar() {
         for (int origin : new int[]{0, 137, 320}) {

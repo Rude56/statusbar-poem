@@ -98,8 +98,7 @@ fun LibraryScreen(
 
     val exportedText = remember(poems) { PoemTextCodec.encode(poems) }
 
-    // 导出用 SAF 的「创建文档」，走 Activity Result API：
-    // 契约挂在 Activity 上，页面被回收也不会丢结果。
+    // 导出用 SAF 的「创建文档」，走 Activity Result API：契约挂在 Activity 上，页面被回收也不会丢结果。
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
     ) { uri ->
@@ -115,7 +114,6 @@ fun LibraryScreen(
         }
     }
 
-    // 拖动排序状态。拖动期间用工作副本，松手才提交。
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
     val working = remember(poems) { mutableStateOf(poems) }
@@ -181,7 +179,6 @@ fun LibraryScreen(
     }
 
     Column(Modifier.fillMaxWidth()) {
-        // 顶部摘要 + 导入导出入口
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -212,7 +209,6 @@ fun LibraryScreen(
             modifier = Modifier.padding(start = 20.dp, bottom = 10.dp),
         )
 
-        // 诗一多（导入几百首后）就没法只靠滑：加一个即时过滤框。
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -320,7 +316,6 @@ fun LibraryScreen(
                         },
                         onDrag = { dy ->
                             dragOffset += dy
-                            // 行高没量到时用一个保守值，不能用写死的像素数。
                             val step = if (rowHeightPx > 0f) rowHeightPx else 1f
                             while (dragOffset > step / 2f) {
                                 val next = moveAmongVisible(working.value, poem.id, visibleIds, 1)
@@ -375,7 +370,6 @@ fun LibraryScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    // 记下删除前的整份列表：撤销时直接还原，不需要撤销栈。
                     val before = poems
                     AppState.persistPoems(context, poems.filterNot { it.id == target.id })
                     pendingDelete = null
@@ -445,7 +439,6 @@ fun LibraryScreen(
             },
             dismissButton = {
                 Row {
-                    // 只进剪贴板的话，换机/重装时早就没了 —— 再给一个「存成文件」。
                     TextButton(onClick = {
                         showExport = false
                         exportLauncher.launch("poems.txt")
@@ -467,7 +460,6 @@ fun LibraryScreen(
  */
 private fun readTextFrom(context: Context, uri: android.net.Uri): String? = try {
     context.contentResolver.openInputStream(uri)?.use { input ->
-        // 一次最多读 1 MB：诗库文本不会有这么大，超了说明选错了文件。
         val buf = ByteArray(1 shl 20)
         var len = 0
         var n: Int
@@ -506,7 +498,6 @@ private fun ImportDialog(
     val snackbar = LocalSnackbar.current
     val readFailedMsg = stringResource(R.string.poem_import_read_failed)
     val scope = rememberCoroutineScope()
-    // 「从文件导入」是异步的：选完文件要读盘，读完把内容填进输入框。
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -542,8 +533,8 @@ private fun ImportDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = {
-                            // text/plain 之外再放开 */*：部分文件管理器把 .txt
-                            // 报成 application/octet-stream，只给 text/plain 会选不中。
+                            // text/plain 之外再放开 */*：部分文件管理器把 .txt 报成 application/octet-stream，
+                            // 只给 text/plain 会选不中。
                             picker.launch(arrayOf("text/plain", "*/*"))
                         },
                     ) {
@@ -598,7 +589,6 @@ private fun PoemCard(
         modifier = Modifier
             .fillMaxWidth()
             .onGloballyPositioned { coords ->
-                // 行高（含间距由外层 spacedBy 提供，这里只要卡片自身高度）。
                 onMeasured(coords.size.height.toFloat())
             }
             .graphicsLayer {
@@ -612,7 +602,6 @@ private fun PoemCard(
             .pointerInput(poem.id) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = {
-                        // 长按真正「抓住」卡片时给一下触感，确认拖的是这一张。
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         onDragStart()
                     },
@@ -644,7 +633,6 @@ private fun PoemCard(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 序号：让「播放顺序」这件事在列表里可见。
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -695,17 +683,7 @@ private fun PoemCard(
     }
 }
 
-/** 行高由 {@code onGloballyPositioned} 量出，不能写死像素值。 */
-
-/**
- * 在「可见的诗」之间移动一格，返回新的列表；移不动时原样返回。
- *
- * 算法在 {@link PoemLibrary.moveAmongVisible}（可单测），swap 语义：被搜索过滤掉的诗原地不动，
- * 顺序不变；按整表下标换位则会把看不见的诗卷进来，用户毫无察觉但顺序已乱。
- * 无路可走时返回同一个对象（`===` 可比），调用方据此退出循环。
- *
- * @param step -1 上移一格，+1 下移一格
- */
+/** 在「可见的诗」之间移动一格；移不动时返回同一个对象（`===` 可比）。swap 语义：被过滤掉的诗原地不动。 */
 private fun moveAmongVisible(
     list: List<PoemItem>,
     id: String,

@@ -13,7 +13,7 @@ public final class Log {
     private static long lastAt;
     private static String lastMsg;
 
-    /** 限频通道：key → 上次放行时刻。容量极小（只有个位数个 key）。 */
+    /** 限频通道：key → 上次放行时刻。 */
     private static final Map<String, Long> GATES = new HashMap<>();
 
     private Log() {
@@ -48,10 +48,8 @@ public final class Log {
     }
 
     /**
-     * 限频闸门：同一个 key 每 {@code minIntervalMs} 毫秒最多放行一次。
-     * 刻意拆成「先问再拼字符串」两步，被挡下时连字符串都不会拼、不分配 StringBuilder。
-     *
-     * @return true 表示这次可以打
+     * 限频闸门：同一个 key 每 {@code minIntervalMs} 毫秒最多放行一次。刻意拆成「先问再拼字符串」
+     * 两步，被挡下时连字符串都不会拼、不分配 StringBuilder。
      */
     public static boolean allow(String key, long minIntervalMs) {
         long now = android.os.SystemClock.elapsedRealtime();

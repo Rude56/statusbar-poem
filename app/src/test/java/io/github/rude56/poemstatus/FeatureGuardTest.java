@@ -6,11 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/**
- * 熔断器的行为：连续失败 {@code MAX_FAIL} 次后熔断，之后低频试探自愈。
- *
- * 必须是行为断言：只读源码看不出 {@code reset()} 有没有被调用过。
- */
+/** 熔断器：连续失败 MAX_FAIL 次后熔断，之后低频试探自愈。 */
 public class FeatureGuardTest {
 
     @Test
@@ -35,12 +31,7 @@ public class FeatureGuardTest {
         assertTrue("达到阈值必须熔断", g.isDisabled("x"));
     }
 
-    /**
-     * 熔断后必须能自愈。
-     *
-     * 「一次成功就复位」会让熔断形同虚设；「永不恢复」会让偶发异常永久失效。
-     * 正确做法是低频试探：试探成功后计数清零、重新放行。
-     */
+    /** 熔断后必须能自愈。 */
     @Test
     public void fusedFeatureRecoversOnProbe() {
         FeatureGuard g = new FeatureGuard();
@@ -126,13 +117,7 @@ public class FeatureGuardTest {
         }));
     }
 
-    /**
-     * 未熔断时快路径不得写 Map（省电约束）。
-     *
-     * {@code guardFast} 每帧被调 30 次，成功路径上任何 Map 写入都是每秒 30 次无谓开销。
-     * 这里用「成功若干次后 failCount 仍为 0」间接验证它没走 recordFailure，
-     * 并用 {@code disabledIds()} 为空确认没做任何标记。
-     */
+    /** 未熔断时快路径不得写 Map（省电约束）。 */
     @Test
     public void fastPathLeavesNoTrace() {
         FeatureGuard g = new FeatureGuard();

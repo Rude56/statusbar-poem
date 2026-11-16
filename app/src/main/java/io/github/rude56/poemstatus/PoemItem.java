@@ -35,10 +35,7 @@ public final class PoemItem {
         return new PoemItem(id, text, author, source, value);
     }
 
-    /**
-     * 实际显示文本：作者/出处被关掉时不拼接，
-     * 因此文字宽度、滚动时长、遮挡包围盒都基于真正的显示内容计算。
-     */
+    /** 实际显示文本：作者/出处被关掉时不拼接，因此文字宽度、滚动时长、遮挡包围盒都基于真正的显示内容计算。 */
     public String displayText(boolean showAuthor, boolean showSource) {
         if (!showAuthor && !showSource) {
             return text;
@@ -63,7 +60,6 @@ public final class PoemItem {
             o.put("source", source);
             o.put("enabled", enabled);
         } catch (Throwable ignored) {
-            // org.json 在 Android 上对字符串 put 不抛异常；这里只是防御性兜底。
         }
         return o;
     }
@@ -98,7 +94,7 @@ public final class PoemItem {
                 }
             }
         } catch (Throwable ignored) {
-            // 损坏的 JSON 当作空库处理：宁可暂时不播放，也不能让 SystemUI 崩。
+            // 损坏的 JSON 当作空库：宁可暂时不播放，也不能让 SystemUI 崩。
         }
         return out;
     }
@@ -114,7 +110,6 @@ public final class PoemItem {
                 }
             }
         } catch (Throwable ignored) {
-            // 极端实现下也不抛，兜底防御。
         }
         return arr.toString();
     }

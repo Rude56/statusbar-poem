@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /**
  * 诗句文字颜色的决策逻辑（纯逻辑，不触碰 Android API）：颜色完全来自系统已算好的结果，不做亮度推断。
- * 优先级 TINT（{@code DarkIconDispatcherImpl.mIconTint}）→ CLOCK → APPEARANCE → MODULE_TEXT → DEFAULT；只在低频路径采样。
+ * 优先级 TINT → CLOCK → APPEARANCE → MODULE_TEXT → DEFAULT；只在低频路径采样。
  */
 public final class ColorResolver {
 
@@ -16,7 +16,7 @@ public final class ColorResolver {
 
     public enum Source {TINT, CLOCK, APPEARANCE, MODULE_TEXT, DEFAULT}
 
-    /** 一次决策的完整结果，带诊断字段。 */
+    /** 一次决策的完整结果。 */
     public static final class Result {
         public final int color;
         public final Source source;
@@ -28,7 +28,7 @@ public final class ColorResolver {
             this.lightBackground = lightBackground;
         }
 
-        /** POEM-COLOR src=tint bg=dark light=false fg=#FFFFFFFF */
+        /** 诊断行格式：{@code POEM-COLOR src=tint bg=dark light=false fg=#FFFFFFFF} */
         public String diagnostic() {
             return "POEM-COLOR src=" + source.name().toLowerCase(Locale.ROOT)
                     + " bg=" + (lightBackground ? "light" : "dark")
@@ -40,31 +40,20 @@ public final class ColorResolver {
     private ColorResolver() {
     }
 
-    /**
-     * 颜色决策。
-     *
-     * @param iconTint        系统给状态栏算好的前景色；{@link #ABSENT} 表示还没拿到
-     * @param clockTextColor  原生时钟当前文字色；{@link #ABSENT} 表示读不到
-     * @param lightStatusBars 系统外观位：true=浅色背景配深色字；{@code null}=还没拿到
-     * @param moduleTextColor 状态栏内任一文字控件的当前文字色；{@link #ABSENT} 表示读不到
-     */
+    /** 颜色决策：{@code iconTint} 为 {@link #ABSENT} 表示还没拿到，{@code lightStatusBars} 为 {@code null} 同理。 */
     public static Result resolve(int iconTint, int clockTextColor,
                                  Boolean lightStatusBars, int moduleTextColor) {
-        // 1) 系统算好的前景色：直接拿来用，不做任何反色推断。
         if (isUsableTextColor(iconTint)) {
             return new Result(iconTint, Source.TINT, isLightBackgroundFor(iconTint));
         }
-        // 2) 原生时钟正在用的文字色。
         if (isUsableTextColor(clockTextColor)) {
             return new Result(clockTextColor, Source.CLOCK, isLightBackgroundFor(clockTextColor));
         }
-        // 3) 系统外观位。
         if (lightStatusBars != null) {
             boolean light = lightStatusBars;
             return new Result(light ? DEFAULT_DARK_TEXT : DEFAULT_LIGHT_TEXT,
                     Source.APPEARANCE, light);
         }
-        // 4) 状态栏内其它文字控件。
         if (isUsableTextColor(moduleTextColor)) {
             return new Result(moduleTextColor, Source.MODULE_TEXT,
                     isLightBackgroundFor(moduleTextColor));
@@ -77,10 +66,7 @@ public final class ColorResolver {
         return color != ABSENT && ((color >>> 24) & 0xFF) > 0;
     }
 
-    /**
-     * 由「系统当前使用的文字色」直接反推背景明暗：
-     * 系统给浅色背景配深色字，给深色背景配浅色字。
-     */
+    /** 由「系统当前使用的文字色」反推背景明暗：系统给浅色背景配深色字，反之亦然。 */
     public static boolean isLightBackgroundFor(int textColor) {
         return luminance(textColor) < 0.5f;
     }

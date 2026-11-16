@@ -10,19 +10,13 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-/** 配置层不变量：跨两进程、跨两次启动、可被手改，任何一侧不对称都会表现成「设置不生效」。 */
+/** 配置层不变量：copy() 与编解码往返都必须无损。 */
 public class ConfigInvariantTest {
 
-    /**
-     * {@code copy()} 必须覆盖每一个实例字段。
-     *
-     * {@code copy()} 是手写的字段罗列，漏一个不会编译报错，只表现为「某个开关保存后不生效」，
-     * 所以用反射兜住。
-     */
     @Test
     public void copyCoversEveryField() throws Exception {
         PoemConfig src = new PoemConfig();
-        // 给每个字段一个与默认值不同的值，才能看出「漏拷贝」。
+        // 每个字段取非默认值，才能看出漏拷贝。
         src.enabled = true;
         src.speedPx = 433;
         src.clockSeconds = 77;
@@ -57,7 +51,6 @@ public class ConfigInvariantTest {
         assertTrue("copy() 漏了这些字段: " + missed, missed.isEmpty());
     }
 
-    /** copy() 必须是深拷贝：改副本的白名单不能影响原件。 */
     @Test
     public void copyIsDeepForWhitelist() {
         PoemConfig src = new PoemConfig();
@@ -67,12 +60,6 @@ public class ConfigInvariantTest {
         assertEquals("改副本不能影响原件", 1, src.whitelist.size());
     }
 
-    /**
-     * 配置编解码必须往返无损。
-     *
-     * 这条覆盖「App 存 → Provider 编码 → SystemUI 解码」整条链路：
-     * 任何一侧漏字段，用户看到的就是「设置不生效」。
-     */
     @Test
     public void codecRoundTripIsLossless() {
         PoemConfig c = new PoemConfig();
@@ -109,16 +96,10 @@ public class ConfigInvariantTest {
         assertEquals("洞配置必须逐字一致", c.holesJson, back.holesJson);
         assertEquals(c.holeMode, back.holeMode);
         assertEquals(c.configRevision, back.configRevision);
-        // 二次往返也必须稳定（幂等）。
+        // 二次往返也必须稳定。
         assertEquals(ConfigCodec.encode(back), ConfigCodec.encode(ConfigCodec.decode(ConfigCodec.encode(back))));
     }
 
-    /**
-     * {@code holesJson} 若是一段 JSON 数组，也必须保住每个洞的模式与槽位。
-     *
-     * 只保留 {@code "l:r"} 两字段会让隧道洞被当成虫洞、颜色也全乱；正常写入走
-     * {@code HoleRects.encode()}，但兼容旧格式的这段代码同样必须保真。
-     */
     @Test
     public void jsonHolesKeepModeAndSlot() {
         PoemConfig c = new PoemConfig();
@@ -134,7 +115,6 @@ public class ConfigInvariantTest {
         assertEquals(1, holes.get(1).slot);
     }
 
-    /** 存储格式的往返：模式与槽位都不能丢。 */
     @Test
     public void holeEncodingRoundTripKeepsEverything() {
         String raw = "100:200:tunnel:2,300:400:wormhole:0";
@@ -142,13 +122,11 @@ public class ConfigInvariantTest {
         assertEquals(2, holes.size());
         assertEquals(raw, HoleRects.encode(holes));
 
-        // 空列表往返为空串，再解析回空列表。
         assertEquals("", HoleRects.encode(new ArrayList<>()));
         assertTrue(HoleRects.parse("").isEmpty());
         assertTrue(HoleRects.parse(null).isEmpty());
     }
 
-    /** 诗库文本格式往返：作者/出处都不能丢，也不能多套一层《》。 */
     @Test
     public void poemTextRoundTripIsLossless() {
         List<PoemItem> list = new ArrayList<>();
@@ -165,16 +143,10 @@ public class ConfigInvariantTest {
             assertEquals("第" + i + "首作者", list.get(i).author, back.get(i).author);
             assertEquals("第" + i + "首出处", list.get(i).source, back.get(i).source);
         }
-        // 再导出一次必须逐字相同（幂等）。
+        // 再导出一次必须逐字相同。
         assertEquals(text, PoemTextCodec.encode(back));
     }
 
-    /**
-     * 导入自己刚导出的内容，不应产生任何新条目。
-     *
-     * 这是「导出再导入」最容易被破坏的性质：只要 id 计算或去重规则有一边走偏，
-     * 用户每导入一次就多一份副本。
-     */
     @Test
     public void importingOwnExportAddsNothing() {
         List<PoemItem> list = new ArrayList<>();
@@ -189,13 +161,12 @@ public class ConfigInvariantTest {
         assertEquals("诗库大小不变", 2, list.size());
     }
 
-    /** 诗库清空后，内置诗不得被合并回来（poemsSeeded 一旦为 true 就永久生效）。 */
+    /** 诗库清空后，内置诗不得被合并回来。 */
     @Test
     public void seededEmptyLibraryStaysEmpty() {
         assertTrue(PoemLibrary.load(true, "[]").isEmpty());
         assertTrue(PoemLibrary.load(true, "").isEmpty());
         assertEquals(PoemLibrary.BUILTIN_COUNT, PoemLibrary.load(false, "").size());
-        // 已初始化过的普通库原样返回。
         assertEquals(1, PoemLibrary.load(true,
                 "[{\"text\":\"x\",\"author\":\"\",\"source\":\"\",\"enabled\":true}]").size());
     }

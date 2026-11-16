@@ -9,12 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-/**
- * 诗库纯文本（{@code 诗句|作者|出处}）编解码测试。
- *
- * 重点在「宽容解析」与「往返无损」：用户会从备忘录、聊天窗口、
- * 各种编辑器里粘贴文本，格式难免有点脏，不能因为一个全角竖线就整份导入失败。
- */
+/** 诗库纯文本（诗句|作者|出处）编解码测试。 */
 public class PoemTextCodecTest {
 
     // ---------------------------------------------------------------- 解析
@@ -71,7 +66,6 @@ public class PoemTextCodecTest {
 
     @Test
     public void stripsNestedBookMarksFromSource() {
-        // 用户从别处复制来的出处常带《》，再导入不能越套越多。
         List<PoemItem> list = PoemTextCodec.decode("会当凌绝顶，一览众山小。|杜甫|《望岳》");
         assertEquals("望岳", list.get(0).source);
         List<PoemItem> again = PoemTextCodec.decode("会当凌绝顶，一览众山小。|杜甫|《《望岳》》");
@@ -116,7 +110,7 @@ public class PoemTextCodecTest {
 
         List<PoemItem> withAuthor = new ArrayList<>();
         withAuthor.add(new PoemItem("", "有作者", "张三", "", true));
-        // 出处为空时不能留下多余的分隔符，否则再解析会把空串当出处。
+        // 出处为空时不能留下多余的分隔符。
         assertEquals("有作者|张三\n", PoemTextCodec.encode(withAuthor));
     }
 
@@ -141,7 +135,6 @@ public class PoemTextCodecTest {
 
     @Test
     public void builtinLibraryRoundTrips() {
-        // 内置 6 首导出再导入必须完全一致 —— 这是「备份/恢复」的基本要求。
         List<PoemItem> builtin = PoemLibrary.defaults();
         List<PoemItem> restored = PoemTextCodec.decode(PoemTextCodec.encode(builtin));
         assertEquals(builtin.size(), restored.size());

@@ -160,12 +160,7 @@ public class SourceAuditTest {
         assertTrue("古诗库页面必须被渲染", app.contains("Tab.LIBRARY -> LibraryScreen"));
     }
 
-    /**
-     * 导航必须严格两层：一级 = 底部导航的三个 tab，二级 = 压栈的详情页。
-     *
-     * 这条约束容易被后续改动破坏（例如随手把某个页面塞进 tab 里，
-     * 或者让二级页也显示底部栏），所以用测试钉住。
-     */
+    /** 导航必须严格两层：一级 = 底部导航的三个 tab，二级 = 压栈的详情页。 */
     @Test
     public void navigationIsTwoLevelMaterialStructure() throws IOException {
         String app = source("ui/PoemApp.kt");
@@ -205,12 +200,7 @@ public class SourceAuditTest {
         assertFalse("不得使用裸 MaterialTheme 包一层", activity.contains("MaterialTheme {"));
     }
 
-    /**
-     * 概览页只保留主开关 + 连接自检 + 配置速览。
-     *
-     * 这条测试同时防止两件事：① 有人把预览又加回来；
-     * ② 概览页重新长成一堆入口卡片，把「一眼看清开没开」这件事冲淡。
-     */
+    /** 概览页只保留主开关 + 连接自检 + 配置速览。 */
     @Test
     public void overviewIsJustTheMasterSwitch() throws IOException {
         String overview = source("ui/OverviewScreen.kt");
@@ -228,16 +218,7 @@ public class SourceAuditTest {
         assertTrue("必须有配置速览", overview.contains("ConfigSummaryCard("));
     }
 
-    /**
-     * LSPosed 连接自检必须真的能判断「模块有没有生效」。
-     *
-     * 原理：注入成功的 SystemUI 每 2 秒会来 {@code ConfigProvider} 读一次配置。
-     * 所以「最后一次被 SystemUI 调用的时间」就是唯一的活性信号 ——
-     * 模块没启用 / 作用域没勾 / 没重启 SystemUI，这个时间戳永远不会刷新。
-     *
-     * 关键约束：只认调用方确实是 SystemUI 的调用。
-     * 否则 App 自己的诊断调用会把「未连接」误判成「已连接」。
-     */
+    /** LSPosed 连接自检必须真的能判断「模块有没有生效」。 */
     @Test
     public void connectionCheckDetectsWhetherTheModuleIsAlive() throws IOException {
         String provider = source("ConfigProvider.java");
@@ -261,13 +242,7 @@ public class SourceAuditTest {
         assertTrue("必须给出重启步骤", cards.contains("R.string.lsp_step_restart"));
     }
 
-    /**
-     * 作用域必须是静态的，且只含 SystemUI。
-     *
-     * legacy 的 {@code xposedscope} 只是一个「建议列表」，用户可以随手把模块
-     * 勾到任意应用上；现代模块的 {@code module.prop} 里
-     * {@code staticScope=true} 才是框架层面拒绝越界的声明。
-     */
+    /** 作用域必须是静态的，且只含 SystemUI。 */
     @Test
     public void moduleDeclaresStaticScopeWithSystemUiOnly() throws IOException {
         File dir = new File(MAIN_RES, "META-INF/xposed");
@@ -337,12 +312,7 @@ public class SourceAuditTest {
         assertTrue("必须校验 token", text.contains("PROVIDER_TOKEN"));
     }
 
-    /**
-     * 现代入口只处理 SystemUI。
-     *
-     * 入口是 {@link io.github.rude56.poemstatus.ModuleMain}：它在 {@code onPackageReady}
-     * 里按包名过滤，而不是 legacy API 的 {@code handleLoadPackage} + {@code lpparam.packageName}。
-     */
+    /** 现代入口只处理 SystemUI。 */
     @Test
     public void moduleEntryOnlyHandlesSystemUi() throws IOException {
         String text = source("ModuleMain.java");
@@ -381,12 +351,7 @@ public class SourceAuditTest {
         }
     }
 
-    /**
-     * 遮挡只有「挖洞」一种方式：{@link HolePuncher} 的一次性画布裁剪。
-     *
-     * 逐个 View 改 alpha 在 Compose 化的状态栏上无效 —— 改 ComposeView 的 alpha
-     * 会让图标闪一下就回来，改不了已经提交的绘制内容；两套方案并存还会互相打架。
-     */
+    /** 遮挡只有「挖洞」一种方式：{@link HolePuncher} 的一次性画布裁剪。 */
     @Test
     public void alphaOcclusionSchemeIsGone() throws IOException {
         assertFalse("不得有 alpha 遮挡方案类", new File(MAIN, "ModuleOccluder.java").isFile());
@@ -462,12 +427,7 @@ public class SourceAuditTest {
         assertFalse(onFrame.contains("TintState"));
     }
 
-    /**
-     * 虫洞位移只能算一次，而且只能算在一个地方。
-     *
-     * 分段在 {@code updateFrame} 里算一次，绘制层与遮挡层共用同一份结果 ——
-     * 两层各调一次等于每帧做两次完全相同的全洞扫描。所以这里断言「全文件只有一处调用」。
-     */
+    /** 虫洞位移只能算一次，而且只能算在一个地方。 */
     @Test
     public void wormholeSegmentsAreComputedExactlyOnce() throws IOException {
         String rt = source("PoemRuntime.java");
@@ -554,13 +514,7 @@ public class SourceAuditTest {
         assertFalse("可见分段也不得分配", vis.contains("new "));
     }
 
-    /**
-     * 状态栏上的框由 App 自己绘制，只在洞页出现。
-     *
-     * App 自己是 edge-to-edge 全屏的，窗口本来就延伸到状态栏下面，
-     * 直接在 y=0..状态栏高度 画框即可：零跨进程、零延迟。
-     * 靠 SystemUI 进程判断 App 是否前台不可靠（框会闪现/常驻）。
-     */
+    /** 状态栏上的框由 App 自己绘制，只在洞页出现。 */
     @Test
     public void holeFramesAreDrawnByTheAppItself() throws IOException {
         String overlay = source("ui/HoleFrameOverlay.kt");
@@ -606,13 +560,7 @@ public class SourceAuditTest {
         assertTrue("洞页必须显示两个样例", cutout.contains("HoleModeSamples("));
     }
 
-    /**
-     * 两行预览必须同时有古诗 —— 这是它们存在的唯一理由。
-     *
-     * 这条约束极易被破坏且不会报错：只要某一行的消失点比另一行早，
-     * 每轮末尾就有一段时间只剩一行有字，对比直接失效。
-     * 循环必须按周期取模并收缩到 {@code cycleEnd}，不能夹取到 {@code [0,1]}。
-     */
+    /** 两行预览必须同时有古诗 —— 这是它们存在的唯一理由。 */
     @Test
     public void bothPreviewsAlwaysShowAPoemAtTheSameTime() throws IOException {
         String samples = source("ui/HoleModeSamples.kt");
@@ -716,12 +664,7 @@ public class SourceAuditTest {
         assertTrue("编辑页必须能删除已有诗", edit.contains("R.string.delete"));
     }
 
-    /**
-     * 古诗库必须支持滑动删除与导入导出。
-     *
-     * 滑动删除用 Material 3 的 {@code SwipeToDismissBox}；导入导出走
-     * {@code 诗句|作者|出处} 纯文本（{@link PoemTextCodec}）。
-     */
+    /** 古诗库必须支持滑动删除与导入导出。 */
     @Test
     public void librarySupportsSwipeDeleteAndTextImportExport() throws IOException {
         String library = source("ui/LibraryScreen.kt");
@@ -802,14 +745,7 @@ public class SourceAuditTest {
 
     // ---------------------------------------------------------------- 回归防线
 
-    /**
-     * 搜索过滤后拖动排序，必须只在「可见的诗」之间换位。
-     *
-     * 显示的是过滤后的列表，换位若按整表下标算 —— 搜索状态下长按拖动，
-     * 屏幕上一动不动，实际却在和看不见的诗悄悄换位。
-     * 行为断言在 {@code PoemLibraryTest.moveAmongVisibleSkipsFilteredOutPoems}，
-     * 这里再钉住接线：拖动必须走那个函数，不能退回整表下标。
-     */
+    /** 搜索过滤后拖动排序，必须只在「可见的诗」之间换位。 */
     @Test
     public void dragReorderRespectsTheVisibleSubset() throws IOException {
         String library = source("ui/LibraryScreen.kt");
@@ -927,12 +863,7 @@ public class SourceAuditTest {
         assertTrue("组内必须按名称稳定排序", screen.contains("thenBy { it.label.lowercase() }"));
     }
 
-    /**
-     * 字符串资源里不得留下没人用的死条目。
-     *
-     * 死资源不影响体积（R8 会连引用一起删），但会让下次改代码的人
-     * 误以为还有那个功能。
-     */
+    /** 字符串资源里不得留下没人用的死条目。 */
     @Test
     public void noDeadStringResources() throws IOException {
         String strings = read(new File(RES, "values/strings.xml"));

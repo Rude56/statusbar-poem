@@ -82,13 +82,8 @@ final class ForegroundTracker {
     }
 
     /**
-     * 开始跟踪。
-     *
-     * 白名单启用时始终保留一个低频兜底轮询，即便任务栈监听注册成功：
-     * 部分 ROM 上 {@code registerTaskStackListener} 返回成功但回调一次都不来，
-     * 只信事件会让白名单「注册成功但完全失效」且无任何报错。
-     *
-     * @param whitelistActive 白名单是否非空；为空时完全不轮询
+     * 开始跟踪。白名单启用时始终保留低频兜底轮询，即便任务栈监听注册成功：
+     * 部分 ROM 上 {@code registerTaskStackListener} 返回成功但回调一次都不来，只信事件会完全失效且无报错。
      */
     void start(boolean whitelistActive) {
         if (!registered) {
@@ -107,13 +102,7 @@ final class ForegroundTracker {
     /** 白名单是否非空（由配置决定，与屏幕状态无关）。 */
     private boolean whitelistActive;
 
-    /**
-     * 开关兜底轮询。
-     *
-     * 拆出来是为了让熄屏也能停掉：熄屏后前台是谁毫无意义，轮询只是纯浪费的唤醒。
-     *
-     * @param active true 表示现在需要轮询
-     */
+    /** 开关兜底轮询。拆出来是为了让熄屏也能停掉：熄屏后前台是谁毫无意义，轮询只是纯浪费的唤醒。 */
     void setPolling(boolean active) {
         main.removeCallbacks(pollRunnable);
         polling = active;
@@ -133,11 +122,8 @@ final class ForegroundTracker {
     }
 
     /**
-     * 刷新前台包名。
-     *
-     * 节流不能丢状态：任务栈监听的回调在事件后 250ms 触发，而节流窗口是 400ms，
-     * 被直接丢掉就没人再补一次，前台会停在过时的值上导致白名单看起来不生效。
-     * 所以被节流挡住时必须记下「还有一个待刷新」，窗口结束后立刻补跑。
+     * 刷新前台包名。节流不能丢状态：监听回调在事件后 250ms 触发而节流窗口是 400ms，
+     * 直接丢掉就没人再补，前台会停在过时值上；所以被挡住时记 pendingRefresh 并补跑。
      */
     void refreshAsync() {
         if (pendingRefresh) {
@@ -187,11 +173,8 @@ final class ForegroundTracker {
     }
 
     /**
-     * 解析当前前台包名；所有候选都失败时返回空串。
-     *
-     * 依次尝试 {@code getTasks} 的全部重载 → {@code getFocusedRootTaskInfo} /
-     * {@code getAllRootTaskInfos} → {@code getRunningTasks}。签名跨版本变过，写死某个重载
-     * 在部分 ROM 上会 {@code NoSuchMethodException}；每个候选单独 try/catch。
+     * 解析当前前台包名；所有候选都失败时返回空串。依次尝试 {@code getTasks} 全部重载 →
+     * {@code getFocusedRootTaskInfo}/{@code getAllRootTaskInfos} → {@code getRunningTasks}；签名跨版本变过，别写死。
      */
     private String topPackage() {
         String pkg = fromActivityTaskManager();
@@ -224,13 +207,10 @@ final class ForegroundTracker {
                     return p;
                 }
             } catch (Throwable ignored) {
-                // 换下一个。
             }
         }
-        // 2) getTasks 的所有重载：签名逐版本变过，别写死。
-        //
-        // getMethods() 每次都会新建 Method[] 并克隆参数类型数组，服务类在进程生命周期里
-        // 不变，所以缓存一次即可，避免每次刷新都做反射枚举。
+        // 2) getTasks 的所有重载：签名逐版本变过，别写死。getMethods() 会新建 Method[] 并克隆参数类型数组，
+        // 而服务类在进程生命周期里不变，缓存一次即可。
         for (Method m : taskMethods(service)) {
             try {
                 Object tasks = m.invoke(service, defaultArgs(m.getParameterTypes()));
@@ -239,7 +219,6 @@ final class ForegroundTracker {
                     return p;
                 }
             } catch (Throwable ignored) {
-                // 这个重载不可用，换下一个。
             }
         }
         // 3) 全部根任务：通常在 SystemUI 里有权限读。
@@ -251,7 +230,6 @@ final class ForegroundTracker {
                     return p;
                 }
             } catch (Throwable ignored) {
-                // 换下一个。
             }
         }
         return "";
@@ -292,16 +270,12 @@ final class ForegroundTracker {
                     return svc;
                 }
             } catch (Throwable ignored) {
-                // 换下一个。
             }
         }
         return null;
     }
 
-    /**
-     * ATM 服务上所有 {@code getTasks} 重载（缓存）：反射枚举 {@code getMethods()} 会分配
-     * Method 数组，而服务类是进程级单例，这份列表一辈子都不用重算。
-     */
+    /** ATM 服务上所有 {@code getTasks} 重载（缓存）：反射枚举 {@code getMethods()} 会分配 Method 数组。 */
     private static Method[] taskMethodsCache;
 
     private static Method[] taskMethods(Object service) {
@@ -376,12 +350,7 @@ final class ForegroundTracker {
         return "";
     }
 
-    /**
-     * 从一个任务信息对象里抠出包名。
-     *
-     * 字段名在不同版本里叫 {@code topActivity} / {@code baseActivity} /
-     * {@code realActivity}，有些版本只有 {@code getTopActivity()} 方法。
-     */
+    /** 从一个任务信息对象里抠出包名；字段名跨版本叫 {@code topActivity} / {@code baseActivity} / {@code realActivity}。 */
     private static String packageOf(Object info) {
         if (info == null) {
             return "";
@@ -397,7 +366,6 @@ final class ForegroundTracker {
                     }
                 }
             } catch (Throwable ignored) {
-                // 换下一个字段。
             }
         }
         for (String m : new String[]{"getTopActivity", "getBaseActivity"}) {
@@ -410,7 +378,6 @@ final class ForegroundTracker {
                     }
                 }
             } catch (Throwable ignored) {
-                // 换下一个方法。
             }
         }
         return "";

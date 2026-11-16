@@ -11,12 +11,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** 取色优先级：系统 tint → 原生时钟 → 外观位 → 其它文字控件 → 默认。绝不自己反色，只读系统算好的结果。 */
+/** 取色优先级：系统 tint → 原生时钟 → 外观位 → 其它文字控件 → 默认。 */
 public class ColorResolverTest {
 
     @Test
     public void systemTintWinsOverEverything() {
-        // 系统给状态栏算好的前景色（这里是浅色字=深色背景）
         ColorResolver.Result r = ColorResolver.resolve(0xFFFFFFFF, 0xFF333333, false, 0xFF202020);
         assertEquals(ColorResolver.Source.TINT, r.source);
         assertEquals(0xFFFFFFFF, r.color);
@@ -65,7 +64,6 @@ public class ColorResolverTest {
 
     @Test
     public void tintFlipsWithAppBackground() {
-        // 同一个方法、同一条代码路径：系统换色，诗句跟着换 —— 这就是「自动反色」。
         int darkApp = ColorResolver.resolve(0xFFFFFFFF, 0, false, 0).color;
         int lightApp = ColorResolver.resolve(0xFF000000, 0, true, 0).color;
         assertEquals(ColorResolver.DEFAULT_LIGHT_TEXT, darkApp);
@@ -95,7 +93,6 @@ public class ColorResolverTest {
 
     @Test
     public void holeListRoundTrips() {
-        // "left:right,left:right" 与 JSON 两种写法都要能读回同样的洞。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("100:200,300:340");
         assertEquals(2, holes.size());
         assertEquals(100, holes.get(0).left);
@@ -107,15 +104,12 @@ public class ColorResolverTest {
         assertEquals(2, back.size());
         assertEquals(300, back.get(1).left);
 
-        // 空列表与脏输入的边界。
         assertTrue(HoleRects.encode(null).isEmpty());
         assertTrue(HoleRects.parse(HoleRects.encode(null)).isEmpty());
     }
 
     @Test
     public void holeListRejectsGarbageAndSorts() {
-        // 脏数据不能让整份配置作废，只丢坏的那几段。
-        // 前两段缺字段/非数字；后两段是合法洞（其中一段带 mode）。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("abc,5:x,300:400,50:90:wormhole");
         assertEquals(2, holes.size());
         assertEquals(50, holes.get(0).left);
@@ -138,18 +132,16 @@ public class ColorResolverTest {
     public void modeParsesBothWays() {
         assertEquals(HoleRects.Mode.TUNNEL, HoleRects.parseMode(HoleRects.MODE_TUNNEL));
         assertEquals(HoleRects.Mode.WORMHOLE, HoleRects.parseMode(HoleRects.MODE_WORMHOLE));
-        // 未知值一律当虫洞，避免配置被手改后行为不确定。
+        // 未知值一律当虫洞。
         assertEquals(HoleRects.Mode.WORMHOLE, HoleRects.parseMode("garbage"));
         assertEquals(HoleRects.MODE_TUNNEL, HoleRects.modeName(HoleRects.Mode.TUNNEL));
     }
 
     @Test
     public void subtractTunnelsRemovesTheCoveredSpan() {
-        // 显式写 tunnel：不带 mode 的配置默认按虫洞解析。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("100:200:tunnel");
         float[] l = new float[4];
         float[] r = new float[4];
-        // 诗句覆盖 50..300，洞在 100..200 → 应切成 50..100 与 200..300 两段。
         int n = HoleRects.subtractTunnels(holes, 50f, 300f, l, r, 0);
         assertEquals(2, n);
         assertEquals(50f, l[0], 0.01f);
@@ -157,19 +149,18 @@ public class ColorResolverTest {
         assertEquals(200f, l[1], 0.01f);
         assertEquals(300f, r[1], 0.01f);
 
-        // 完全在洞左侧：一段都不缺。
         n = HoleRects.subtractTunnels(holes, 0f, 90f, l, r, 0);
         assertEquals(1, n);
         assertEquals(0f, l[0], 0.01f);
         assertEquals(90f, r[0], 0.01f);
 
-        // 虫洞不参与减法：虫洞里的字是要「传送」的，不是被遮住的。
+        // 虫洞不参与减法。
         n = HoleRects.subtractTunnels(HoleRects.parse("100:200:wormhole"), 50f, 300f, l, r, 0);
         assertEquals("虫洞不得被减掉", 1, n);
         assertEquals(50f, l[0], 0.01f);
         assertEquals(300f, r[0], 0.01f);
 
-        // 可以从已有段数之后继续追加（帧内复用同一个数组）。
+        // 可从已有段数之后继续追加。
         n = HoleRects.subtractTunnels(null, 10f, 20f, l, r, 2);
         assertEquals(3, n);
         assertEquals(10f, l[2], 0.01f);
@@ -179,18 +170,15 @@ public class ColorResolverTest {
     public void newHoleAvoidsExistingOnes() {
         java.util.List<HoleRects.Hole> holes = new ArrayList<>();
 
-        // 第一个洞落在屏幕中央。
         int[] first = HoleRects.findFreeSpot(holes, 1440, 100);
         assertNotNull(first);
         holes.add(new HoleRects.Hole(first[0], first[1]));
 
-        // 第二个必须避开第一个。
         int[] second = HoleRects.findFreeSpot(holes, 1440, 100);
         assertNotNull(second);
         assertFalse("新洞不能与已有洞重叠",
                 second[1] > first[0] && second[0] < first[1]);
 
-        // 连续添加 8 个，两两都不得重叠。
         holes.add(new HoleRects.Hole(second[0], second[1]));
         while (holes.size() < 8) {
             int[] spot = HoleRects.findFreeSpot(holes, 1440, 100);
@@ -205,11 +193,10 @@ public class ColorResolverTest {
         }
         assertTrue("800px 的洞应该能全部放下", holes.size() >= 8);
 
-        // 屏幕放不下时必须返回 null，而不是给一个重叠的位置。
+        // 放不下时必须返回 null。
         java.util.List<HoleRects.Hole> full = new ArrayList<>();
         full.add(new HoleRects.Hole(0, 1440));
         assertNull(HoleRects.findFreeSpot(full, 1440, 100));
-        // 宽度非法也要返回 null。
         assertNull(HoleRects.findFreeSpot(new ArrayList<>(), 0, 100));
         assertNull(HoleRects.findFreeSpot(new ArrayList<>(), 1440, 0));
         assertNull(HoleRects.findFreeSpot(new ArrayList<>(), 1440, 2000));
@@ -217,23 +204,21 @@ public class ColorResolverTest {
 
     // ------------------------------------------------------------ 洞禁止重合
 
-    /** 洞之间禁止重合：重叠时「按虫洞还是隧道处理」没有答案，结果取决于遍历顺序。 */
+    /** 洞之间禁止重合。 */
     @Test
     public void overlappingHolesAreRejectedOnParse() {
-        // 完全重合、部分相交都要被去掉，只留有先出现（按左边界排序后靠前）的那个。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse(
                 "100:300:wormhole,200:400:tunnel,500:600:wormhole");
         assertEquals("相交的洞必须被丢弃", 2, holes.size());
         assertEquals(100, holes.get(0).left);
         assertEquals(300, holes.get(0).right);
         assertEquals(500, holes.get(1).left);
-        // 首尾相接（右边界 == 下一个的左边界）不算重合。
+        // 首尾相接不算重合。
         assertEquals(2, HoleRects.parse("100:200:wormhole,200:300:tunnel").size());
     }
 
     @Test
     public void sanitizeKeepsNonOverlappingOrderAndIsStable() {
-        // 已排好序、互不相交的列表必须原样保留。
         java.util.List<HoleRects.Hole> in = HoleRects.parse("0:10:wormhole,20:30:tunnel,40:50:wormhole");
         java.util.List<HoleRects.Hole> out = HoleRects.sanitize(in);
         assertEquals(3, out.size());
@@ -260,7 +245,7 @@ public class ColorResolverTest {
         // 首尾相接不算重合。
         assertFalse(HoleRects.overlapsAny(holes, 300, 400, -1));
 
-        // firstOverlap 用于告诉用户撞到了哪一个。
+        // firstOverlap 指出撞到哪一个。
         HoleRects.Hole clash = HoleRects.firstOverlap(holes, 550, 650, -1);
         assertNotNull(clash);
         assertEquals(500, clash.left);
@@ -270,7 +255,6 @@ public class ColorResolverTest {
     @Test
     public void wormholeKeepsTextIntact() {
         // 虫洞按传送门实现：字到洞口右沿瞬间出现在左沿，洞里不画。
-        // 字一个都不能丢：所有分段宽度之和恒等于文字原宽。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("600:700:wormhole");
         float[] s = new float[8];
         float[] t = new float[8];
@@ -289,7 +273,6 @@ public class ColorResolverTest {
     }
     @Test
     public void wormholeKeepsEveryCharacter() {
-        // 虫洞不得丢字：所有分段宽度之和 = 文字宽度 - 已跨越的洞宽。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("600:700:wormhole");
         float[] s = new float[8];
         float[] t = new float[8];
@@ -299,13 +282,12 @@ public class ColorResolverTest {
         for (int i = 0; i < n; i++) {
             total += w[i];
         }
-        // 虫洞不丢字：所有分段宽度之和恒等于文字原宽（300）。
-        // 洞只是把文字在屏幕上的位置压缩了，字本身一个不少。
+        // 分段宽度之和恒等于文字原宽（300）。
         assertEquals(300f, total, 0.01f);
     }
     @Test
     public void tunnelDoesNotJump() {
-        // 隧道洞不参与分段（位置不变），只有隧道时 wormholeSegments 仍返回整体一段。
+        // 隧道不参与分段，只有隧道时仍返回整体一段。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("300:400:tunnel");
         float[] s = new float[4];
         float[] t = new float[4];
@@ -319,7 +301,6 @@ public class ColorResolverTest {
 
     @Test
     public void wormholeSegmentsCoverTextWithoutLoss() {
-        // 分段必须完整覆盖文字：所有段的宽度之和 = 文字宽度 - 被洞吃掉的部分。
         java.util.List<HoleRects.Hole> holes = HoleRects.parse("300:400:wormhole");
         float[] s = new float[8];
         float[] t = new float[8];

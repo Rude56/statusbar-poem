@@ -4,34 +4,24 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-/**
- * 状态栏 View 树的只读查找工具。全部是低频路径（每首诗一次 / 取色兜底），绝不进帧循环。
- */
+/** 状态栏 View 树的只读查找工具；全是低频路径（每首诗一次 / 取色兜底），绝不进帧循环。 */
 final class ViewTree {
 
-    /** 递归深度上限：挡住异常深的 View 树，避免递归失控。 */
+    /** 递归深度上限，挡住异常深的 View 树。 */
     private static final int MAX_DEPTH = 24;
 
     private ViewTree() {
     }
 
     /**
-     * 给「挖洞」用的内容根。
-     *
-     * 必须在 Compose 画布的祖先层挖：树是
-     * {@code status_bar_container > ComposeView > AndroidComposeView > ... > status_bar_contents}，
-     * 时钟和 WiFi/电量 都由 {@code AndroidComposeView} 那一次绘制提交，
-     * 在 {@code status_bar_contents} 上裁剪管不到它们。
-     * {@code status_bar_container} 包住整块 Compose 画布与原生互操作层，
-     * 又不含我们自己的诗句层（OverlayView 挂在窗口层，是它的祖辈的兄弟）。
+     * 挖洞用的内容根：必须在 Compose 画布的祖先层（{@code status_bar_container}）挖，
+     * 在 {@code status_bar_contents} 上裁剪管不到时钟与 WiFi/电量；结果缓存到窗口重建才失效。
      */
     static View findContentRoot(View window) {
         if (window == null) {
             return null;
         }
-        // 缓存：同一个窗口 + 同一个资源 id 解析出来的根在整个生命周期里不变。
-        // 每首诗开始时会调一次，而 getIdentifier（查资源表）+ findViewById（递归遍历子树）
-        // 都不便宜；窗口被重建时这个缓存会因为 window 引用不同而自动失效。
+        // 每首诗开始都会调，getIdentifier + findViewById 不便宜；窗口重建时 window 引用变化自动失效。
         View cached = cachedRoot;
         if (cached != null && cachedWindow == window && cached.getParent() != null) {
             return cached;
@@ -91,7 +81,6 @@ final class ViewTree {
                 return root.findViewById(id);
             }
         } catch (Throwable ignored) {
-            // 换下一个候选。
         }
         return null;
     }

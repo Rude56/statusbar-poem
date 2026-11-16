@@ -100,7 +100,6 @@ public final class ConfigStore {
             ctx.getContentResolver().notifyChange(
                     android.net.Uri.parse("content://" + FeatureAudit.PROVIDER_AUTHORITY + "/config"), null);
         } catch (Throwable ignored) {
-            // notify 失败不影响配置本身，SystemUI 侧仍有兜底重试。
         }
     }
 

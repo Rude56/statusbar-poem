@@ -11,13 +11,7 @@ public final class PreviewClock {
     private PreviewClock() {
     }
 
-    /**
-     * 当前进度，取值 {@code [0, 1)}。
-     *
-     * 用取模而不是夹取：夹取会在周期末尾冻结，取模则循环。
-     *
-     * @param elapsedNanos 从起点算起经过的时间（可以是负数或超过一个周期）
-     */
+    /** 当前进度，取值 {@code [0, 1)}。用取模而不是夹取：夹取会在周期末尾冻结，取模则循环。 */
     public static float progressAt(long elapsedNanos, long cycleNanos) {
         if (cycleNanos <= 0L) {
             return 0f;
@@ -30,13 +24,8 @@ public final class PreviewClock {
     }
 
     /**
-     * 一轮循环实际需要的进度跨度 —— 两行必须同时有字。
-     *
-     * 虫洞把整句往左瞬移一个洞宽，字在 {@code progress} 还差一点到 1 时
-     * 就已全部离开屏幕，所以循环终点收缩到虫洞行的消失点，到点立刻重启。
-     *
-     * @param wormholeWidth 虫洞宽度（像素）；没有虫洞时传 0
-     * @return 循环终点，取值 {@code (0, 1]}
+     * 一轮循环实际需要的进度跨度 —— 两行必须同时有字。虫洞把整句往左瞬移一个洞宽，
+     * 字在 progress 还差一点到 1 时就已全部离开屏幕，所以循环终点收缩到虫洞行的消失点。
      */
     public static float cycleEnd(float canvasWidth, float textWidth, float wormholeWidth) {
         if (wormholeWidth <= 0f) {
@@ -51,11 +40,8 @@ public final class PreviewClock {
     }
 
     /**
-     * 给定进度下，诗句轨道左端的位置。
-     *
-     * 轨道总长 = 画布宽 + 文字宽：文字从「完全在右边外面」走到「完全在左边外面」。
-     * 两种模式必须用同一个公式，否则对比的就不是「洞的差别」，
-     * 而是「两套不同速度」的差别。
+     * 给定进度下诗句轨道左端的位置。轨道总长 = 画布宽 + 文字宽：文字从「完全在右边外面」
+     * 走到「完全在左边外面」；两种模式必须用同一个公式，否则对比的就不是「洞的差别」。
      */
     public static float trackLeft(float canvasWidth, float textWidth, float progress) {
         float span = canvasWidth + textWidth;
@@ -63,11 +49,8 @@ public final class PreviewClock {
     }
 
     /**
-     * 虫洞把整句往左瞬移了「已穿过的洞宽之和」，所以屏幕上最后一个像素
-     * 比轨道走完更早消失 —— 这个进度就是那个临界点。
-     *
-     * 与运行时 {@link HoleRects#finishLeft} 是同一个判据，预览据此可以
-     * 和真实播放对上，而不是靠肉眼估算。
+     * 虫洞把整句往左瞬移了「已穿过的洞宽之和」，屏幕上最后一个像素比轨道走完更早消失，
+     * 这个进度就是临界点；与运行时 {@link HoleRects#finishLeft} 是同一判据。
      */
     public static float progressAtFinish(float canvasWidth, float textWidth, float wormholeWidth) {
         float span = canvasWidth + textWidth;

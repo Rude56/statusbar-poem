@@ -59,7 +59,7 @@ public class ConfigCodecTest {
         for (String key : ConfigKeys.ALL) {
             assertTrue("缺少键: " + key, o.has(key));
         }
-        // 反向：JSON 里不应有 ALL 之外的键（防止悄悄新增字段但没登记）
+        // 反向：JSON 里不应有 ALL 之外的键。
         assertEquals(ConfigKeys.ALL.length, o.length());
     }
 
