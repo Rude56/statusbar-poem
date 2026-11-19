@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">状态栏古诗</string>
-    <string name="module_description">诗句从状态栏右侧滚入，只遮住诗句正下方那一小段，播完把时钟还给你，停一会儿再播下一首。完全离线，省电。只作用于系统界面。</string>
+    <string name="module_description">在状态栏滚动古诗。只遮住诗句正下方那一小段，播完还原时钟；完全离线，只作用于系统界面。</string>
 
     <string name="tab_overview">概览</string>
     <string name="tab_library">古诗库</string>

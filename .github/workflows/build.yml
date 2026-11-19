@@ -19,12 +19,20 @@ jobs:
           java-version: '21'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          SDK_ROOT="$HOME/android-sdk"
+          mkdir -p "$SDK_ROOT/cmdline-tools"
+          curl -fsSL -o /tmp/cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+          unzip -q /tmp/cmdtools.zip -d "$SDK_ROOT/cmdline-tools"
+          mv "$SDK_ROOT/cmdline-tools/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
 
       - name: Install SDK 37
         run: |
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0"
+          sdkmanager --install "platforms;android-37" "build-tools;37.0.0" "platform-tools"
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -41,6 +49,7 @@ jobs:
           KEYSTORE_PROPS: ${{ secrets.KEYSTORE_PROPS }}
         run: |
           if [ -z "$KEYSTORE_B64" ]; then echo "未配置签名密钥，跳过签名"; exit 0; fi
+          mkdir -p keystore
           echo "$KEYSTORE_B64" | base64 -d > keystore/release.keystore
           printf '%s\n' "$KEYSTORE_PROPS" > keystore.properties
 

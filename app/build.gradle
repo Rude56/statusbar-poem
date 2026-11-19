@@ -12,9 +12,10 @@ android {
         applicationId "io.github.rude56.poemstatus"
         minSdk 33
         targetSdk 37
-        // 版本号 = 日期 + 当日第几版；LSPosed 仓库的 tag 为 <versionCode>-<versionName>。
-        versionCode 2026111901
-        versionName "2026.11.19(1)"
+        // 版本号只取发布日期：versionName 给用户看，versionCode 用同一串数字（去掉点）。
+        // tag 为 <versionCode>-<versionName>，即 20261119-2026.11.19。
+        versionCode 20261119
+        versionName "2026.11.19"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
