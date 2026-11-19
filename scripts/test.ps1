@@ -1,6 +1,3 @@
-# 运行全部 JVM 单元测试
-#
-# 前置条件同 build.ps1。
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 

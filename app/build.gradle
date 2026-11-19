@@ -1,6 +1,5 @@
 plugins {
     id 'com.android.application'
-    // AGP 9 内置 Kotlin 编译；Compose 编译器插件与内置 Kotlin 版本保持一致。
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
@@ -13,8 +12,9 @@ android {
         applicationId "io.github.rude56.poemstatus"
         minSdk 33
         targetSdk 37
-        versionCode 1
-        versionName "1.0.0"
+        // 版本号 = 日期 + 当日第几版；LSPosed 仓库的 tag 为 <versionCode>-<versionName>。
+        versionCode 2026111901
+        versionName "2026.11.19(1)"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -29,14 +29,10 @@ android {
     }
 
     signingConfigs {
-        // 发布签名从 keystore.properties 读取（不提交到仓库）。
-        // 没有该文件时退回 Android 默认 debug 签名，保证任何人都能直接构建。
         release {
             def propsFile = rootProject.file('keystore.properties')
             if (propsFile.exists()) {
                 def props = new Properties()
-                // 按 UTF-8 读并去掉 BOM：Windows 记事本/PowerShell 默认会写 BOM，
-                // 否则第一个键名会变成 "\ufeffstoreFile" 而取不到值。
                 def text = propsFile.getText('UTF-8').replace('\uFEFF', '')
                 props.load(new StringReader(text))
                 storeFile rootProject.file(props.getProperty('storeFile'))
@@ -49,11 +45,8 @@ android {
 
     buildTypes {
         debug {
-            // debug 用默认签名即可，方便真机抓堆栈。
         }
         release {
-            // 只对 release 开启裁剪/混淆；Hook 侧全靠字符串反射，
-            // 需要保住的东西都写在 proguard-rules.pro 里。
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
@@ -81,27 +74,38 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+                "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+                "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+        )
+    }
+}
+
 dependencies {
-    // ---- App 设置界面（仅本应用进程）----
-    implementation 'androidx.activity:activity-compose:1.9.3'
-    implementation platform('androidx.compose:compose-bom:2024.12.01')
+    implementation 'androidx.activity:activity-compose:1.13.0'
+    implementation platform('androidx.compose:compose-bom:2026.09.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.foundation:foundation'
-    implementation 'androidx.compose.material3:material3'
-    // 图标：只用 core 里的那 50 个常用图标，不引入 material-icons-extended
-    // （extended 会多出几千个类、APK 增大好几 MB）。
-    implementation 'androidx.compose.material:material-icons-core'
+    implementation 'androidx.compose.material3:material3:1.5.0-alpha28'
+    implementation 'androidx.compose.material:material-icons-extended'
     implementation 'androidx.compose.runtime:runtime'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.11.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.11.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0'
 
-    // ---- SystemUI Hook 侧（compileOnly：运行时由 LSPosed 提供）----
-    // 现代 libxposed API：只有现代模块才能声明 staticScope（静态作用域），
-    // 这是「模块不允许被作用到范围外的应用」的唯一表达方式。
-    // 旧 API（de.robv.android.xposed:api:82）里的 xposedscope 只是「建议列表」，
-    // 用户可以随手把模块勾到别的应用上。
+    implementation 'top.yukonga.miuix.kmp:miuix-ui:0.9.4'
+    implementation 'top.yukonga.miuix.kmp:miuix-icons:0.9.4'
+    implementation 'top.yukonga.miuix.kmp:miuix-blur:0.9.4'
+    implementation 'top.yukonga.miuix.kmp:miuix-nav:0.9.4'
+    implementation 'top.yukonga.miuix.kmp:miuix-preference:0.9.4'
+
+    implementation 'androidx.navigationevent:navigationevent-compose:1.1.2'
+    implementation 'com.materialkolor:material-kolor:5.0.1'
+
     compileOnly 'io.github.libxposed:api:102.0.0'
 
-    // ---- 纯 JVM 测试 ----
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
 }

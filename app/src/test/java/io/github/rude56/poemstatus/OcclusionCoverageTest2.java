@@ -7,20 +7,16 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** 重绘区域的正确性：洞跟着诗句往左走，旧位置必须被擦掉。 */
 public class OcclusionCoverageTest2 {
-
     private static final int BAR_W = 1440;
     private static final float TEXT_W = 1284f;
     private static final int CAP = 64;
-
     private static final float[] SEG_S = new float[CAP];
     private static final float[] SEG_T = new float[CAP];
     private static final float[] SEG_W = new float[CAP];
     private static final float[] VIS_L = new float[CAP];
     private static final float[] VIS_R = new float[CAP];
 
-    /** 一帧的可见段（与运行时走同一条路径：先虫洞分段，再算可见段）。 */
     private static int visible(float left, List<HoleRects.Hole> holes) {
         int n = HoleRects.wormholeSegments(holes, left, left + TEXT_W, 0,
                 SEG_S, SEG_T, SEG_W, CAP);
@@ -28,16 +24,13 @@ public class OcclusionCoverageTest2 {
                 left, left + TEXT_W, 0, BAR_W, VIS_L, VIS_R);
     }
 
-    /** 模拟 HolePuncher 的脏区记账：脏区 = 本帧并集 ∪ 上一帧未擦除的并集。 */
     private static final class DirtyTracker {
         int lastL;
         int lastR;
         boolean has;
-
-        /** 该帧应重绘的 {left, right}；无事可做时 null。 */
         int[] frame(float[] lefts, float[] rights, int count) {
             if (count <= 0) {
-                // 本帧没有任何可见文字：只需擦掉上一帧挖过的范围。
+
                 if (!has) {
                     return null;
                 }
@@ -59,7 +52,6 @@ public class OcclusionCoverageTest2 {
         }
     }
 
-    /** 诗句一路左移：每一帧的重绘区都必须覆盖「上一帧被挖掉的范围」。 */
     @Test
     public void repaintCoversTheAreaThePoemJustLeft() {
         List<HoleRects.Hole> holes = HoleRects.parse("170:1000:wormhole:0");
@@ -79,11 +71,10 @@ public class OcclusionCoverageTest2 {
             if (n <= 0 || dirty == null) {
                 continue;
             }
-            // 本帧重绘区必须覆盖「本帧要挖的」那几段。
             assertTrue("第 " + frames + " 帧重绘区 " + dirty[0] + "-" + dirty[1]
                             + " 没覆盖本帧的洞 " + (int) VIS_L[0] + "-" + (int) VIS_R[n - 1],
                     dirty[0] <= (int) VIS_L[0] && dirty[1] >= (int) VIS_R[n - 1]);
-            // 多画是刻意的（上一帧的洞必须一起补），少画才是缺陷。
+
             worstMiss = Math.max(worstMiss,
                     Math.max(0, (int) VIS_L[0] - dirty[0])
                             + Math.max(0, (int) VIS_R[n - 1] - dirty[1]));
@@ -93,7 +84,6 @@ public class OcclusionCoverageTest2 {
         assertEquals("本帧的洞必须被完整覆盖", 0, worstMiss);
     }
 
-    /** 每一帧的重绘区必须覆盖上一帧的整条洞范围。 */
     @Test
     public void everyFrameRepaintsThePreviousHoleCompletely() {
         List<HoleRects.Hole> holes = HoleRects.parse("170:1000:wormhole:0");
@@ -123,7 +113,6 @@ public class OcclusionCoverageTest2 {
         assertTrue("必须真的验证到足够多的帧", checked > 100);
     }
 
-    /** 本帧 0 段时，上一帧的洞仍然必须被擦掉。 */
     @Test
     public void zeroSegmentFrameStillErasesThePreviousHole() {
         float[] sl = new float[CAP];
@@ -141,11 +130,9 @@ public class OcclusionCoverageTest2 {
         assertEquals("必须精确擦掉上一帧的洞", 400, erased[0]);
         assertEquals(900, erased[1]);
 
-        // 已经擦干净之后再问一次：不该再产生无谓的重绘。
         assertEquals("没事可擦时不得重绘", null, t.frame(sl, sr, 0));
     }
 
-    /** 虫洞把句子切成两段时，一次重绘必须覆盖两段的并集。 */
     @Test
     public void multiSegmentFrameRepaintsOneUnionBox() {
         List<HoleRects.Hole> holes = HoleRects.parse("170:1000:wormhole:0");

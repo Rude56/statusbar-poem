@@ -6,15 +6,9 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 配置的 JSON 编解码：所有字段名都取自 {@link ConfigKeys}，写读两侧同源。
- * 解析失败时调用方必须保留上一份有效配置。
- */
 public final class ConfigCodec {
-
     private ConfigCodec() {
     }
-
     public static String encode(PoemConfig c) {
         PoemConfig cfg = c == null ? new PoemConfig() : c.normalized();
         JSONObject o = new JSONObject();
@@ -37,10 +31,11 @@ public final class ConfigCodec {
             o.put(ConfigKeys.WHITELIST, wl);
             o.put(ConfigKeys.POEMS_JSON, cfg.poemsJson == null ? "" : cfg.poemsJson);
             o.put(ConfigKeys.POEMS_SEEDED, cfg.poemsSeeded);
+            o.put(ConfigKeys.WHITELIST_SEEDED, cfg.whitelistSeeded);
             o.put(ConfigKeys.HOLES_JSON, cfg.holesJson == null ? "" : cfg.holesJson);
-            o.put(ConfigKeys.HOLE_MODE, cfg.holeMode);
             o.put(ConfigKeys.CONFIG_REVISION, cfg.configRevision);
         } catch (Throwable ignored) {
+
         }
         return o.toString();
     }
@@ -78,13 +73,12 @@ public final class ConfigCodec {
         c.whitelist = wl;
         c.poemsJson = o.optString(ConfigKeys.POEMS_JSON, "");
         c.poemsSeeded = o.optBoolean(ConfigKeys.POEMS_SEEDED, false);
+        c.whitelistSeeded = o.optBoolean(ConfigKeys.WHITELIST_SEEDED, false);
         c.holesJson = o.optString(ConfigKeys.HOLES_JSON, "");
-        c.holeMode = o.optString(ConfigKeys.HOLE_MODE, HoleRects.MODE_WORMHOLE);
         c.configRevision = o.optLong(ConfigKeys.CONFIG_REVISION, 0L);
         return c.normalized();
     }
 
-    /** 白名单 → 逗号分隔（UI 展示用），空列表返回空串。 */
     public static String whitelistToText(List<String> list) {
         StringBuilder sb = new StringBuilder();
         if (list != null) {
@@ -101,7 +95,6 @@ public final class ConfigCodec {
         return sb.toString();
     }
 
-    /** 逗号/分号/换行/空格都可作为分隔符，方便手填与粘贴。 */
     public static List<String> parseWhitelist(String text) {
         List<String> out = new ArrayList<>();
         if (text == null) {

@@ -5,38 +5,34 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** 帧节奏：回调间隔随速度自适应，高速封顶 30fps。 */
 public class FramePacerTest {
-
     @Test
     public void targetFrameIsAbout33ms() {
         assertEquals(30, FramePacer.TARGET_FPS);
         assertEquals(33_333_333L, FramePacer.TARGET_FRAME_NS);
         assertTrue(FramePacer.TARGET_FRAME_NS * 30L <= 1_000_000_000L);
     }
-
-    /** 帧间隔随速度自适应：低速时少醒，高速时回到 30fps 封顶。 */
     @Test
     public void intervalGrowsAtLowSpeedAndCapsAtThirtyFps() {
+
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(600));
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(120));
+
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(60));
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(30));
+
         assertTrue("低速必须放宽", FramePacer.intervalNsForSpeed(20) >= 50_000_000L);
         assertTrue("低速不得被压回 30fps",
                 FramePacer.intervalNsForSpeed(20) > FramePacer.TARGET_FRAME_NS);
     }
-
     @Test
     public void intervalIsBoundedAndSafeForBadSpeed() {
         assertEquals(FramePacer.MAX_ADAPTIVE_INTERVAL_NS, FramePacer.intervalNsForSpeed(1));
         assertTrue(FramePacer.intervalNsForSpeed(1) <= FramePacer.MAX_ADAPTIVE_INTERVAL_NS);
-        // 非法速度不得返回 0 或负数。
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(0));
         assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(-5));
     }
 
-    /** 间隔随速度单调不减：速度越慢，醒得越少。 */
     @Test
     public void slowerSpeedNeverWakesMoreOften() {
         long prev = FramePacer.intervalNsForSpeed(1);

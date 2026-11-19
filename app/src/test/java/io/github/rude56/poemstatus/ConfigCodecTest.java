@@ -11,7 +11,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
-/** 配置/诗库 JSON 往返、字段与键的一一对应。 */
 public class ConfigCodecTest {
 
     @Test
@@ -30,7 +29,6 @@ public class ConfigCodecTest {
         c.poemsJson = PoemItem.listToJson(PoemLibrary.defaults());
         c.poemsSeeded = true;
         c.holesJson = "670:770,900:960";
-        c.holeMode = HoleRects.MODE_TUNNEL;
         c.configRevision = 7;
 
         String json = ConfigCodec.encode(c);
@@ -49,7 +47,6 @@ public class ConfigCodecTest {
         assertEquals(c.poemsJson, d.poemsJson);
         assertEquals(c.poemsSeeded, d.poemsSeeded);
         assertEquals(c.holesJson, d.holesJson);
-        assertEquals(c.holeMode, d.holeMode);
         assertEquals(c.configRevision, d.configRevision);
     }
 
@@ -59,7 +56,6 @@ public class ConfigCodecTest {
         for (String key : ConfigKeys.ALL) {
             assertTrue("缺少键: " + key, o.has(key));
         }
-        // 反向：JSON 里不应有 ALL 之外的键。
         assertEquals(ConfigKeys.ALL.length, o.length());
     }
 
@@ -119,7 +115,6 @@ public class ConfigCodecTest {
                 java.util.Arrays.asList("com.a", "com.b", "com.c"));
         assertEquals("com.a,com.b,com.c", text);
         assertEquals(3, ConfigCodec.parseWhitelist(text).size());
-        // 各种分隔符
         assertEquals(3, ConfigCodec.parseWhitelist("com.a;com.b\ncom.c").size());
         assertEquals(0, ConfigCodec.parseWhitelist("").size());
     }

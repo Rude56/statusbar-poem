@@ -2,10 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!--
-      不申请 INTERNET：模块全程离线。
-      白名单需要列出已安装应用，因此声明 QUERY_ALL_PACKAGES（仅本应用进程使用）。
-    -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -18,6 +14,7 @@
     </queries>
 
     <application
+        android:name=".PoemApplication"
         android:allowBackup="true"
         android:description="@string/module_description"
         android:icon="@mipmap/ic_launcher"
@@ -30,29 +27,18 @@
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:enableOnBackInvokedCallback="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!--
-          只读配置通道：被 Hook 的 SystemUI 进程通过 ContentResolver.call() 读取 JSON 配置。
-          SystemUI 不读 App 私有目录；Provider 内无任何写入口，只暴露 join 后的配置字符串。
-        -->
         <provider
             android:name=".ConfigProvider"
             android:authorities="io.github.rude56.poemstatus.config"
             android:exported="true" />
 
-        <!--
-          模块声明在 src/main/resources/META-INF/xposed/ 下：
-            java_init.list —— 入口类
-            module.prop    —— minApiVersion / targetApiVersion / staticScope=true
-            scope.list     —— com.android.systemui
-          静态作用域（staticScope）只有现代 libxposed 模块能声明。
-        -->
     </application>
-
 </manifest>

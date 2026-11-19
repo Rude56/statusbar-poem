@@ -1,36 +1,64 @@
 package io.github.rude56.poemstatus
 
 import android.content.Context
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 
-/**
- * 维护动作：重启 SystemUI（需要 root；无 root 时给出提示）。必须异步：root 管理器默认会弹授权框
- * 等用户点「允许」，{@code ProcessBuilder(...).waitFor()} 同步调用在主线程上会 ANR；整段跑在 IO 线程。
- */
 object RestartHelper {
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun restartSystemUi(context: Context): RestartResult = withContext(Dispatchers.IO) {
 
-        /**
-         * 请求重启 SystemUI；true 表示命令已发出（SystemUI 马上会被系统拉起）。
-         * 必须异步：root 管理器默认弹授权框等用户点「允许」，同步调用在主线程上会 ANR。
-         */
-    suspend fun restartSystemUi(context: Context): Boolean = withContext(Dispatchers.IO) {
-        val cmds = arrayOf(
-            arrayOf("su", "-c", "killall com.android.systemui"),
-            arrayOf("su", "-c", "pkill -f com.android.systemui"),
-        )
-        for (cmd in cmds) {
-            try {
-                val p = ProcessBuilder(*cmd).redirectErrorStream(true).start()
-                p.inputStream.bufferedReader().use { it.readText() }
-                if (p.waitFor() == 0) {
-                    Log.i("SystemUI restart requested")
-                    return@withContext true
-                }
-            } catch (t: Throwable) {
-            }
+        val authorization = runSu("id -u", rootProbe = true)
+        if (authorization != RestartResult.SUCCESS) {
+            return@withContext authorization
         }
-        Log.w("SystemUI restart failed (no root?)")
-        false
+        for (command in arrayOf("killall com.android.systemui", "pkill -f com.android.systemui")) {
+            val result = runSu(command, rootProbe = false)
+            if (result == RestartResult.SUCCESS) {
+                Log.i("SystemUI restart requested")
+                return@withContext result
+            }
+            if (result != RestartResult.COMMAND_FAILED) {
+                return@withContext result
+            }
+
+        }
+        RestartResult.COMMAND_FAILED
+    }
+
+    private suspend fun runSu(command: String, rootProbe: Boolean): RestartResult = runInterruptible {
+        val process = try {
+            ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+        } catch (e: IOException) {
+            val result = RestartFailureClassifier.classifySuStartFailure(e)
+            Log.w("SystemUI restart could not start su: $result")
+            return@runInterruptible result
+        } catch (e: SecurityException) {
+            Log.w("SystemUI restart process launch blocked")
+            return@runInterruptible RestartResult.COMMAND_FAILED
+        }
+
+        try {
+
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            val result = if (rootProbe) {
+                RestartFailureClassifier.classifyRootProbe(exitCode, output)
+            } else {
+                RestartFailureClassifier.classifyCommand(exitCode, output)
+            }
+            if (result != RestartResult.SUCCESS) {
+                Log.w("SystemUI restart ${if (rootProbe) "root probe" else "command"}: $result (exit=$exitCode)")
+            }
+            result
+        } catch (e: IOException) {
+
+            Log.w("SystemUI restart output read failed")
+            RestartResult.COMMAND_FAILED
+        } finally {
+            process.destroy()
+        }
     }
 }

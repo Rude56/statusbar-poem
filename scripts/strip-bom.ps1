@@ -1,6 +1,4 @@
 $ErrorActionPreference = 'Stop'
-# 统一以 UTF-8 无 BOM 写回源码：PowerShell 5.1 的 Set-Content -Encoding utf8 会加 BOM，
-# 而 javac 遇到 BOM 会报「非法字符: '\ufeff'」，构建直接失败。
 $root = Join-Path $PSScriptRoot '..\app\src'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $fixed = 0

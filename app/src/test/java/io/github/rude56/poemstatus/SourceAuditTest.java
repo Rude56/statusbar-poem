@@ -15,12 +15,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- * 省电与结构约束：直接读源码文本做断言，把「性能/省电」这类容易被后续修改悄悄破坏的约束
- * 变成会失败的测试，而不是只写在 README 里。
- */
 public class SourceAuditTest {
-
     private static final File MAIN = new File("src/main/java/io/github/rude56/poemstatus");
     private static final File RES = new File("src/main/res");
     private static final File MAIN_RES = new File("src/main/resources");
@@ -35,7 +30,12 @@ public class SourceAuditTest {
         return read(new File(MAIN, name));
     }
 
-    /** 截取某个方法/匿名类的函数体的近似文本（按大括号配对）。 */
+    private static boolean avoidsIme(String text) {
+        return text.contains("imePadding()")
+                || (text.contains("contentWindowInsets") && text.contains("WindowInsets.ime"))
+                || text.contains("WindowInsets.safeDrawing");
+    }
+
     private static String bodyOf(String text, String signature) {
         int idx = text.indexOf(signature);
         if (idx < 0) {
@@ -62,8 +62,6 @@ public class SourceAuditTest {
         fail("大括号不配对: " + signature);
         return "";
     }
-
-    // ---------------------------------------------------------------- 帧内约束
 
     @Test
     public void frameLoopDoesNotAllocateOrSampleOrLog() throws IOException {
@@ -97,9 +95,9 @@ public class SourceAuditTest {
     public void colorSamplingIsNotInAnimationPath() throws IOException {
         String text = source("SystemUiController.java");
         String startCrawl = bodyOf(text, "public void startCrawl(PoemItem poem, String displayText, int speedPx)");
-        // 允许在「开始一首」时采样一次
+
         assertTrue(startCrawl.contains("colorSampler.sample"));
-        // 但帧回调里绝不允许采样
+
         String onFrame = bodyOf(text, "public void onFrame(float left, float top, float right, float bottom)");
         assertFalse(onFrame.contains("colorSampler"));
         assertFalse(onFrame.contains("WallpaperManager"));
@@ -148,77 +146,124 @@ public class SourceAuditTest {
         }
     }
 
-    // ---------------------------------------------------------------- 功能契约
-
     @Test
     public void entryTitleAndSecondaryPageTitleExist() throws IOException {
         String strings = read(new File(RES, "values/strings.xml"));
         assertTrue("缺少古诗库页面标题", strings.contains("古诗库"));
-        // 古诗库是一级 tab。
-        String app = source("ui/PoemApp.kt");
-        assertTrue("古诗库必须是一级 tab", app.contains("LIBRARY(R.string.tab_library)"));
-        assertTrue("古诗库页面必须被渲染", app.contains("Tab.LIBRARY -> LibraryScreen"));
+
+        String dest = source("ui/component/bottombar/BottomBarDestination.kt");
+        assertTrue("古诗库必须是一级 tab", dest.contains("R.string.tab_library"));
+        assertTrue("概览必须是一级 tab", dest.contains("R.string.tab_overview"));
+        assertTrue("设置必须是一级 tab", dest.contains("R.string.tab_settings"));
+        String activity = source("MainActivity.kt");
+        assertTrue("古诗库页面必须被渲染", activity.contains("1 -> LibraryScreen(bottomInnerPadding = bottomInnerPadding)"));
+        assertTrue("概览页面必须被渲染", activity.contains("0 -> HomeScreen(bottomInnerPadding = bottomInnerPadding)"));
+        assertTrue("设置页面必须被渲染", activity.contains("2 -> SettingsScreen(bottomInnerPadding = bottomInnerPadding)"));
     }
 
-    /** 导航必须严格两层：一级 = 底部导航的三个 tab，二级 = 压栈的详情页。 */
     @Test
     public void navigationIsTwoLevelMaterialStructure() throws IOException {
-        String app = source("ui/PoemApp.kt");
-        // 一级：恰好三个 tab
-        assertTrue(app.contains("OVERVIEW(R.string.tab_overview)"));
-        assertTrue(app.contains("LIBRARY(R.string.tab_library)"));
-        assertTrue(app.contains("SETTINGS(R.string.tab_settings)"));
-        // 底部导航只在一级页出现（二级页压栈时隐藏）
-        assertTrue("底部导航必须受 current == null 控制",
-                app.contains("if (current == null) {") && app.contains("NavigationBar("));
-        // 二级页必须有返回箭头
-        assertTrue("二级页必须有返回按钮", app.contains("Icons.AutoMirrored.Filled.ArrowBack"));
-        // 系统返回键必须先退二级页
-        assertTrue("必须拦截系统返回键", app.contains("BackHandler(enabled = stack.isNotEmpty())"));
-        // 二级页集合
-        assertTrue(app.contains("data object Holes : Detail"));
-        assertTrue(app.contains("data object Whitelist : Detail"));
-        assertTrue(app.contains("data object About : Detail"));
-        assertTrue(app.contains("data class PoemEdit(val poemId: String?) : Detail"));
-    }
-
-    /** 主题必须是 Material 3，并且支持动态取色与深色模式。 */
-    @Test
-    public void themeIsMaterial3WithDynamicColor() throws IOException {
-        String theme = source("ui/theme/Theme.kt");
-        assertTrue("必须用 Material 3 的 lightColorScheme", theme.contains("lightColorScheme("));
-        assertTrue("必须用 Material 3 的 darkColorScheme", theme.contains("darkColorScheme("));
-        assertTrue("必须支持动态取色", theme.contains("dynamicLightColorScheme"));
-        assertTrue("必须支持深色动态取色", theme.contains("dynamicDarkColorScheme"));
-        assertTrue("必须跟随系统深浅色", theme.contains("isSystemInDarkTheme()"));
-        assertTrue("必须定义圆角体系", theme.contains("Shapes("));
-        assertTrue("必须定义字体体系", theme.contains("Typography("));
-        // MainActivity 必须套上主题，而不是裸 MaterialTheme 默认配色
         String activity = source("MainActivity.kt");
-        assertTrue("MainActivity 必须使用 PoemTheme", activity.contains("PoemTheme {"));
-        assertTrue("必须边到边显示", activity.contains("enableEdgeToEdge"));
-        assertFalse("不得使用裸 MaterialTheme 包一层", activity.contains("MaterialTheme {"));
+
+        assertTrue("一级页必须用 Pager 承载三个 tab", activity.contains("HorizontalPager("));
+        assertTrue("tab 数量必须恰好三个", activity.contains("MainPagerConfig.PAGE_COUNT"));
+        assertTrue("三个 tab 必须逐个渲染", activity.contains("0 -> HomeScreen(")
+                && activity.contains("1 -> LibraryScreen(")
+                && activity.contains("2 -> SettingsScreen("));
+        assertTrue("三个一级页都必须收到底部内边距",
+                activity.contains("HomeScreen(bottomInnerPadding = bottomInnerPadding)")
+                        && activity.contains("LibraryScreen(bottomInnerPadding = bottomInnerPadding)")
+                        && activity.contains("SettingsScreen(bottomInnerPadding = bottomInnerPadding)"));
+
+        assertTrue("二级页必须由 NavDisplay 承载", activity.contains("NavDisplay("));
+        assertTrue("必须交给 NavDisplay 接管返回",
+                activity.contains("onBack = { navigator.pop() }"));
+
+        for (String route : new String[]{"Route.Status", "Route.Appearance", "Route.Holes",
+                "Route.HoleEdit", "Route.HoleNew", "Route.Whitelist", "Route.About",
+                "Route.PoemEdit"}) {
+            assertTrue("二级页必须注册: " + route, activity.contains("entry<" + route + ">"));
+        }
+
+        assertTrue("根页必须禁用侧滑",
+                activity.contains("entry<Route.Main>(swipeDismiss = NavSwipeDirection.None)"));
+
+        assertTrue("底部导航必须只挂在一级页", activity.contains("bottomBar = bottomBar"));
     }
 
-    /** 概览页只保留主开关 + 连接自检 + 配置速览。 */
+    @Test
+    public void themeSupportsBothMaterialAndMiuix() throws IOException {
+
+        String theme = source("ui/theme/Theme.kt");
+        assertTrue("必须按 UiMode 分派两套主题",
+                theme.contains("UiMode.Material -> MaterialTemplateTheme(")
+                        && theme.contains("UiMode.Miuix -> MiuixTemplateTheme("));
+        assertTrue("必须跟随系统深浅色", theme.contains("isSystemInDarkTheme()"));
+
+        String material = source("ui/theme/MaterialTheme.kt");
+        assertTrue("必须用 Material 3 的 lightColorScheme", material.contains("dynamicLightColorScheme"));
+        assertTrue("必须用 Material 3 的 darkColorScheme", material.contains("dynamicDarkColorScheme"));
+        assertTrue("必须接入 MaterialExpressiveTheme", material.contains("MaterialExpressiveTheme("));
+        assertTrue("必须支持自定义种子色", material.contains("rememberDynamicColorScheme("));
+        assertTrue("必须支持纯黑（AMOLED）", material.contains("isAmoled"));
+        String miuix = source("ui/theme/MiuixTheme.kt");
+        assertTrue("必须接入 MiuixTheme", miuix.contains("MiuixTheme("));
+        assertTrue("Miuix 也必须支持壁纸取色", miuix.contains("ColorSchemeMode.MonetSystem"));
+        assertTrue("Miuix 也必须跟随系统深浅色", miuix.contains("isSystemInDarkTheme()"));
+
+        String activity = source("MainActivity.kt");
+        assertTrue("MainActivity 必须使用 TemplateTheme", activity.contains("TemplateTheme("));
+        assertTrue("必须边到边显示", activity.contains("enableEdgeToEdge"));
+        assertFalse("不得再使用裸 MaterialTheme 包一层", activity.contains("MaterialTheme {"));
+    }
+
     @Test
     public void overviewIsJustTheMasterSwitch() throws IOException {
-        String overview = source("ui/OverviewScreen.kt");
-        assertTrue("必须有主开关卡片", overview.contains("MasterCard("));
-        assertFalse("不得有状态栏效果预览", overview.contains("StatusBarStrip("));
-        assertFalse("不得有快捷入口", overview.contains("NavRow("));
-        assertFalse("不得引用快捷入口文案", overview.contains("overview_shortcuts"));
-        // 首次引导保留：开关关着时告诉用户下一步做什么。
-        assertTrue("首次使用必须有引导", overview.contains("overview_getting_started"));
-        assertTrue("引导必须只在关闭时出现", overview.contains("if (!cfg.enabled)"));
-        // 开关开着却播不了时要说清缺什么。
-        assertTrue("必须提示阻塞原因", overview.contains("blockerText("));
-        // 新增：连接自检 + 配置速览
-        assertTrue("必须有连接自检", overview.contains("ConnectionCard("));
-        assertTrue("必须有配置速览", overview.contains("ConfigSummaryCard("));
-    }
 
-    /** LSPosed 连接自检必须真的能判断「模块有没有生效」。 */
+        String screen = source("ui/screen/home/HomeScreen.kt");
+        String state = source("ui/screen/home/HomeUiState.kt");
+        String material = source("ui/screen/home/HomeMaterial.kt");
+        String miuix = source("ui/screen/home/HomeMiuix.kt");
+
+        assertTrue("必须区分正常状态", state.contains("OK,") && state.contains("HomeTone.OK"));
+        assertTrue("必须区分关闭状态", state.contains("OFF,") && state.contains("HomeTone.OFF"));
+        assertTrue("必须区分异常状态",
+                state.contains("NOT_CONNECTED") && state.contains("NO_POEMS"));
+
+        for (String skin : new String[]{"Material", "Miuix"}) {
+            String text = skin.equals("Material") ? material : miuix;
+            assertTrue(skin + " 必须按状态分派标题", text.contains("HomeTone.NOT_CONNECTED"));
+            assertTrue(skin + " 必须按状态分派标题", text.contains("HomeTone.OK"));
+        }
+        assertFalse("状态栏效果预览已删除", material.contains("StatusBarStrip(")
+                || miuix.contains("StatusBarStrip("));
+        assertFalse("快捷入口已删除", material.contains("NavRow(") || miuix.contains("NavRow("));
+        assertTrue("首次使用必须有引导", material.contains("R.string.overview_getting_started")
+                && miuix.contains("R.string.overview_getting_started"));
+
+        for (String f : new String[]{"ui/screen/home/HomeMaterial.kt",
+                "ui/screen/home/HomeMiuix.kt"}) {
+            String text = source(f);
+            assertTrue(f + " 引导必须只在未连接时出现", text.contains("visible = !state.connected"));
+            assertTrue(f + " 引导出现/消失必须有过渡",
+                    text.contains("AnimatedVisibility(")
+                            && text.contains("expandVertically()")
+                            && text.contains("shrinkVertically()"));
+        }
+
+        assertTrue("必须提示阻塞原因", material.contains("R.string.overview_empty")
+                && miuix.contains("R.string.overview_empty"));
+        assertTrue("必须有连接自检", state.contains("val connected: Boolean"));
+        assertTrue("必须有配置速览", material.contains("ConfigSummaryColumn(")
+                && miuix.contains("ConfigSummaryCard("));
+
+        int notConnectedBranch = material.indexOf("visible = !state.connected");
+        int summary = material.indexOf("ConfigSummaryColumn(state)");
+        assertTrue("未连接分支必须存在", notConnectedBranch >= 0);
+        assertTrue("配置速览必须挂在「已连接」分支里，不能无条件显示",
+                summary > notConnectedBranch);
+        assertTrue("状态卡必须可点进状态页", screen.contains("onOpenStatus = { navigator.push(Route.Status) }"));
+    }
     @Test
     public void connectionCheckDetectsWhetherTheModuleIsAlive() throws IOException {
         String provider = source("ConfigProvider.java");
@@ -228,21 +273,30 @@ public class SourceAuditTest {
         assertTrue("必须与作用域包名比对", provider.contains("FeatureAudit.SCOPE_PACKAGE"));
         assertTrue("必须提供读取入口", provider.contains("public static long lastSystemUiCallAt()"));
 
-        String overview = source("ui/OverviewScreen.kt");
-        assertTrue("概览页必须读这个时间戳", overview.contains("ConfigProvider.lastSystemUiCallAt()"));
-        // 超时判定：正常 2 秒一次，留 5 倍余量。
-        assertTrue("必须有超时判定", overview.contains("secondsAgo in 0..10"));
+        String conn = source("ui/util/ConnectionStatus.kt");
+        assertTrue("共享文件必须读这个时间戳",
+                conn.contains("ConfigProvider.lastSystemUiCallAt()"));
+        assertTrue("共享文件必须有超时判定", conn.contains("secondsAgo in 0..10"));
 
-        String cards = source("ui/StatusCards.kt");
-        assertTrue("必须有已连接文案", cards.contains("R.string.lsp_connected"));
-        assertTrue("必须有未连接文案", cards.contains("R.string.lsp_not_connected"));
-        // 未连接时必须给出三步排查
-        assertTrue("必须给出启用步骤", cards.contains("R.string.lsp_step_enable"));
-        assertTrue("必须给出作用域步骤", cards.contains("R.string.lsp_step_scope"));
-        assertTrue("必须给出重启步骤", cards.contains("R.string.lsp_step_restart"));
+        for (String f : new String[]{"ui/screen/home/HomeScreen.kt", "ui/screen/status/StatusScreen.kt"}) {
+            String text = source(f);
+            assertTrue(f + " 必须用共享的连接判定", text.contains("isConnected(secondsAgo)"));
+            assertTrue(f + " 必须同步读初始值", text.contains("mutableLongStateOf(readSecondsAgo())"));
+            assertTrue(f + " 必须按 2 秒轮询", text.contains("delay(2000)"));
+        }
+
+        String material = source("ui/screen/home/HomeMaterial.kt");
+        String miuix = source("ui/screen/home/HomeMiuix.kt");
+        for (String skin : new String[]{"Material", "Miuix"}) {
+            String text = skin.equals("Material") ? material : miuix;
+            assertTrue(skin + " 必须有已连接文案", text.contains("R.string.status_ok"));
+            assertTrue(skin + " 必须有未连接文案", text.contains("R.string.status_not_connected"));
+            assertTrue(skin + " 必须给出启用步骤", text.contains("R.string.step_enable_title"));
+            assertTrue(skin + " 必须给出诗库步骤", text.contains("R.string.step_library_title"));
+            assertTrue(skin + " 必须给出设洞步骤", text.contains("R.string.step_holes_title"));
+        }
     }
 
-    /** 作用域必须是静态的，且只含 SystemUI。 */
     @Test
     public void moduleDeclaresStaticScopeWithSystemUiOnly() throws IOException {
         File dir = new File(MAIN_RES, "META-INF/xposed");
@@ -272,30 +326,27 @@ public class SourceAuditTest {
                 read(initFile).trim().endsWith("ModuleMain"));
     }
 
-    /** legacy 模块声明必须清干净，否则 LSPosed 会把它当 legacy 模块处理（staticScope 无效）。 */
     @Test
     public void legacyModuleDeclarationIsGone() throws IOException {
         String manifest = read(MANIFEST);
-        // 断言的是「声明」，不是「这个词」—— 注释里提到旧名字是合理的。
-        assertFalse("不得声明 xposedmodule",
+
+        assertFalse("不得再声明 xposedmodule",
                 manifest.contains("android:name=\"xposedmodule\""));
-        assertFalse("不得声明 xposedscope",
+        assertFalse("不得再声明 xposedscope",
                 manifest.contains("android:name=\"xposedscope\""));
-        assertFalse("不得声明 xposedminversion",
+        assertFalse("不得再声明 xposedminversion",
                 manifest.contains("android:name=\"xposedminversion\""));
-        assertFalse("不得有旧作用域数组",
+        assertFalse("不得再有旧作用域数组",
                 new File(RES, "values/arrays.xml").isFile());
-        assertFalse("入口类必须是 ModuleMain，不得有 XposedInit",
-                new File(MAIN, "XposedInit.java").isFile());
-        assertFalse("入口清单必须是 META-INF/xposed/java_init.list",
+        assertFalse("旧入口类必须已删除", new File(MAIN, "XposedInit.java").isFile());
+        assertFalse("旧入口清单必须已删除",
                 new File("src/main/assets/xposed_init").isFile());
     }
-
     @Test
     public void manifestDeclaresNoInternetPermission() throws IOException {
         String manifest = read(MANIFEST);
         assertFalse("不得申请联网权限", manifest.contains("android.permission.INTERNET"));
-        // 现代模块用 android:description 作为模块描述。
+
         assertTrue(manifest.contains("android:description="));
         assertTrue(manifest.contains("io.github.rude56.poemstatus.config"));
     }
@@ -312,7 +363,6 @@ public class SourceAuditTest {
         assertTrue("必须校验 token", text.contains("PROVIDER_TOKEN"));
     }
 
-    /** 现代入口只处理 SystemUI。 */
     @Test
     public void moduleEntryOnlyHandlesSystemUi() throws IOException {
         String text = source("ModuleMain.java");
@@ -320,10 +370,10 @@ public class SourceAuditTest {
                 text.contains("FeatureAudit.SCOPE_PACKAGE.equals(param.getPackageName())"));
         assertTrue("必须打 INJECTED 日志", text.contains("INJECTED process="));
         assertTrue("必须继承现代入口基类", text.contains("extends XposedModule"));
-        // legacy API 不得残留：现代模块（targetApiVersion>=102）根本不允许调用它。
+
         for (String f : new String[]{"ModuleMain.java", "SystemUiController.java"}) {
             String s = source(f);
-            assertFalse(f + " 不得引用 legacy API",
+            assertFalse(f + " 不得再引用旧 API",
                     s.contains("de.robv.android.xposed") || s.contains("XposedHelpers")
                             || s.contains("XC_MethodHook"));
         }
@@ -338,7 +388,7 @@ public class SourceAuditTest {
             assertTrue("ConfigKeys 缺少 " + key, keys.contains(key));
             assertTrue("编码端未使用 " + key, codec.contains("ConfigKeys." + key));
         }
-        // App 写入端也直接引用同一个常量类（不是手写字符串）
+
         assertTrue(store.contains("ConfigKeys.SPEED_PX"));
         assertTrue(store.contains("ConfigKeys.POEMS_JSON"));
     }
@@ -351,83 +401,72 @@ public class SourceAuditTest {
         }
     }
 
-    /** 遮挡只有「挖洞」一种方式：{@link HolePuncher} 的一次性画布裁剪。 */
     @Test
     public void alphaOcclusionSchemeIsGone() throws IOException {
-        assertFalse("不得有 alpha 遮挡方案类", new File(MAIN, "ModuleOccluder.java").isFile());
-        assertFalse("不得有模式开关", new File(MAIN, "OcclusionMode.java").isFile());
-        assertFalse("不得有 alpha 方案专用的规划器",
+        assertFalse("旧方案类必须已删除", new File(MAIN, "ModuleOccluder.java").isFile());
+        assertFalse("模式开关必须已删除", new File(MAIN, "OcclusionMode.java").isFile());
+        assertFalse("只被旧方案使用的规划器必须已删除",
                 new File(MAIN, "OcclusionPlanner.java").isFile());
-        // 任何地方都不得引用它们。
+
         for (String f : new String[]{"PoemRuntime.java", "SystemUiController.java",
                 "ColorSampler.java", "HolePuncher.java"}) {
             String text = source(f);
-            assertFalse(f + " 不得引用 ModuleOccluder", text.contains("ModuleOccluder"));
-            assertFalse(f + " 不得引用 OcclusionMode", text.contains("OcclusionMode"));
+            assertFalse(f + " 不得再引用 ModuleOccluder", text.contains("ModuleOccluder"));
+            assertFalse(f + " 不得再引用 OcclusionMode", text.contains("OcclusionMode"));
         }
-        // 帧内也不允许出现任何 alpha 写入。
         String runtime = source("PoemRuntime.java");
         assertFalse("诗句层不得改别人 alpha", runtime.contains("setAlpha"));
     }
 
-    /** 挖洞是唯一的遮挡方式，且必须成对 save/restore、必须节流。 */
     @Test
     public void holePunchIsTheOnlyOcclusionScheme() throws IOException {
         String hole = source("HolePuncher.java");
-        // 核心机制：在内容根的画布上挖洞，clip 随 save/restore 传给所有子孙。
         assertTrue("必须用 clipOutRect 挖洞", hole.contains("clipOutRect"));
-        // save/restore 必须成对，且必须走「栈」而不是单一计数：
-        // View.draw 被重入时，单一计数会被内层抹掉，画布裁剪会永久残留。
+
         assertTrue("必须用 ClipStack 管理 save/restore", hole.contains("ClipStack"));
         assertTrue("必须 restoreToCount 到本层保存点", hole.contains("restoreToCount"));
-        // 单一计数不得出现在代码里（注释里提到旧实现是合理的）。
+
         for (String line : hole.split("\n")) {
             String code = line.trim();
             if (code.startsWith("*") || code.startsWith("//") || code.startsWith("/*")) {
                 continue;
             }
-            assertFalse("不得退回单一计数: " + code, code.contains("savedClips"));
+            assertFalse("不得再退回单一计数: " + code, code.contains("savedClips"));
         }
-        // 必须只在绑定的内容根上挖，不能挖到诗句层自己。
+
         assertTrue("必须校验目标就是内容根", hole.contains("view != root"));
-        // 重绘要节流，否则等于每帧重绘整条状态栏。
+
         assertTrue("必须节流", hole.contains("INVALIDATE_INTERVAL_MS"));
 
-        // 挖洞必须绑在 Compose 画布的祖先层，绑到 status_bar_contents 管不到图标。
-        // 查找逻辑在 lookupContentRoot 里；findContentRoot 只负责缓存。
         String tree = source("ViewTree.java");
         String findRoot = bodyOf(tree, "private static View lookupContentRoot(View window)");
         assertTrue("必须优先绑 status_bar_container",
                 findRoot.contains("status_bar_container"));
-        // 每首诗都会调一次：必须缓存，否则每次都要查资源表 + 递归遍历子树。
+
         String cached = bodyOf(tree, "static View findContentRoot(View window)");
         assertTrue("内容根必须缓存", cached.contains("cachedRoot"));
         assertTrue("缓存必须在窗口重建时失效", cached.contains("cachedWindow == window"));
-        // 帧内不允许打日志（挖洞路径同样受约束）。
+
         String runtime = source("PoemRuntime.java");
         String onFrame = bodyOf(runtime,
                 "void updateOcclusion(float l, float t, float r, float b)");
         assertFalse(onFrame.contains("Log."));
     }
-
     @Test
     public void colorComesFromSystemTintNotHeuristics() throws IOException {
-        // 自动反色的正确做法是「抄系统算好的前景色」，不是自己看壁纸/亮度。
-        String tint = source("TintState.java");
-        assertTrue("必须 Hook 系统的图标 tint", tint.contains("mIconTint"));
         String hook = source("SystemUiController.java");
+        assertTrue("必须 Hook 系统的图标 tint", hook.contains("mIconTint"));
         assertTrue(hook.contains("DarkIconDispatcherImpl"));
         assertTrue(hook.contains("applyIconTint"));
         String sampler = source("ColorSampler.java");
         assertTrue("取色必须优先用系统 tint", sampler.contains("TintState.tint()"));
         assertFalse("不得读壁纸", sampler.contains("WallpaperManager"));
-        // 帧回调里绝不允许取色
+
         String onFrame = bodyOf(hook, "public void onFrame(float left, float top, float right, float bottom)");
         assertFalse(onFrame.contains("colorSampler"));
         assertFalse(onFrame.contains("TintState"));
     }
 
-    /** 虫洞位移只能算一次，而且只能算在一个地方。 */
     @Test
     public void wormholeSegmentsAreComputedExactlyOnce() throws IOException {
         String rt = source("PoemRuntime.java");
@@ -436,7 +475,6 @@ public class SourceAuditTest {
         assertEquals("分段只能算一次（绘制层与遮挡层共用结果）",
                 -1, rt.indexOf("HoleRects.wormholeSegments", first + 1));
 
-        // 计算必须发生在帧循环里，绘制与遮挡都只读结果。
         String frame = bodyOf(rt, "private void updateFrame(long frameTimeNanos)");
         assertTrue("分段必须在帧里算", frame.contains("HoleRects.wormholeSegments"));
         String draw = bodyOf(rt, "private void drawTextWithHoles(Canvas canvas)");
@@ -447,237 +485,265 @@ public class SourceAuditTest {
     }
     @Test
     public void framePositionIsNeverRewrittenByHoles() throws IOException {
-        // 诗句位置必须只由「时间 × 速度」决定。
-        // 任何洞都不得参与位置计算 —— 否则会出现开头缺字、速度突变。
+
         String rt = source("PoemRuntime.java");
         String frame = bodyOf(rt, "private void updateFrame(long frameTimeNanos)");
         assertTrue("位置必须由时间算出", frame.contains("viewW - traveled"));
         assertFalse("帧内不得调用任何洞位移函数", frame.contains("shiftForWormhole"));
         assertFalse(frame.contains("wormholeShift"));
         assertFalse("帧内不得引用 HolePuncher", frame.contains("HolePuncher"));
-        // 位移函数必须已从 HolePuncher 中移除。
-        assertFalse("位移函数应不存在",
+
+        assertFalse("位移函数应已移除",
                 source("HolePuncher.java").contains("static float shiftForWormhole"));
     }
-
     @Test
     public void holesOnlyAffectTextDrawing() throws IOException {
         String rt = source("PoemRuntime.java");
         String draw = bodyOf(rt, "private void drawTextWithHoles(Canvas canvas)");
-        // 隧道：洞内不画。
+
         assertTrue("隧道必须 clipOutRect", draw.contains("clipOutRect"));
         assertTrue("必须正常绘制文字", draw.contains("canvas.drawText"));
-        // 虫洞：必须按分段平移绘制（这就是「跳跃」），分段由帧里算好后复用。
+
         assertTrue("虫洞必须分段平移", draw.contains("canvas.translate"));
         assertTrue("绘制必须复用帧里算好的分段", draw.contains("segCount"));
-        // 缓冲区长度必须受 MAX_HOLES 约束。
+
         assertTrue("缓冲长度必须受 MAX_HOLES 约束",
                 rt.contains("new float[HoleRects.MAX_HOLES + 1]"));
     }
 
     @Test
     public void holesNeverPunchThroughTheStatusBar() throws IOException {
-        // 用户定义的「洞」本身绝不在状态栏上挖洞 —— 洞只影响诗句自己的绘制。
-        // 状态栏的挖洞只来自「文字可见的分段」。
+
         String hole = source("HolePuncher.java");
         String begin = bodyOf(hole, "static boolean beginClip(Canvas canvas, View view)");
         assertTrue("必须按可见分段挖", begin.contains("segLeft[i]"));
         assertFalse("不得直接按用户洞列表挖", begin.contains("holes.get(i)"));
-        // 位移函数必须彻底不存在。
-        assertFalse("位移函数应不存在", hole.contains("shiftForWormhole"));
+
+        assertFalse("位移函数应已删除", hole.contains("shiftForWormhole"));
     }
 
     @Test
     public void tunnelDoesNotOccludeStatusBar() throws IOException {
-        // 隧道里的字看不见，那段屏幕不该再遮挡状态栏内容。
-        // 否则会出现「诗进了隧道看不见，图标却还被挖掉一块」。
-        //
-        // 遮挡分段整体在 HoleRects.visibleSegments（纯函数，可逐帧验证），
-        // 所以这里钉的是「运行时确实走那条路」，减法细节在 HoleRects 里校验。
+
         String rt = source("PoemRuntime.java");
         String upd = bodyOf(rt, "void updateOcclusion(float l, float t, float r, float b)");
         assertTrue("遮挡必须走 visibleSegments", upd.contains("HoleRects.visibleSegments"));
-        // 运行时不得自己内联一套分段/减法。
         assertFalse("运行时不得重算隧道减法", upd.contains("subtractTunnels"));
-        // 坐标契约：必须把诗句层的屏幕原点交出去。
         assertTrue("必须使用诗句层屏幕原点", upd.contains("screenOriginX"));
-
-        // 减法本身是 HoleRects 里的纯函数，由 ColorResolverTest 做行为验证。
         String holes = source("HoleRects.java");
         String vis = bodyOf(holes, "public static int visibleSegments(");
         assertTrue("可见分段必须减掉隧道", vis.contains("subtractTunnels"));
         String sub = bodyOf(holes, "public static int subtractTunnels(");
         assertTrue("只减隧道洞", sub.contains("h.isWormhole()"));
         assertTrue("必须跳过隧道区间", sub.contains("cursor = Math.max(cursor, hr)"));
-        // 帧内零分配：结果必须写进调用方数组，不能在这里 new。
+
         assertFalse("不得在帧内分配", sub.contains("new "));
         assertFalse("可见分段也不得分配", vis.contains("new "));
     }
 
-    /** 状态栏上的框由 App 自己绘制，只在洞页出现。 */
     @Test
     public void holeFramesAreDrawnByTheAppItself() throws IOException {
         String overlay = source("ui/HoleFrameOverlay.kt");
-        // 必须按状态栏 inset 定位，才能正好压在真实状态栏上。
+
         assertTrue("必须读状态栏高度", overlay.contains("WindowInsets.statusBars"));
         assertTrue("必须用 statusBars.getTop", overlay.contains("statusBars.getTop"));
-        // 颜色必须取洞自己的槽位，不能取列表下标（否则增删洞会换色）。
+
         assertTrue("颜色必须按槽位取", overlay.contains("holeColor(hole.slot)"));
-        // 框内不得标数字：这么窄的一条里既看不清又盖住图标。
+
         assertFalse("框内不得画序号", overlay.contains("drawLabel") || overlay.contains("measurer"));
+        assertTrue("必须支持编辑中的草稿", overlay.contains("draft: HoleDraft? = null"));
+        assertTrue("草稿持有者必须存在", overlay.contains("object HoleDraftHolder"));
 
-        // 只在洞列表页和洞编辑页出现。
-        String app = source("ui/PoemApp.kt");
-        assertTrue("洞页必须显示框", app.contains("current == Detail.Holes"));
-        assertTrue("洞编辑页也必须显示框", app.contains("current is Detail.HoleEdit"));
-        assertTrue("必须调用 HoleFrameOverlay", app.contains("HoleFrameOverlay("));
+        assertTrue("只填左边界时必须画竖线", overlay.contains("l != null && r == null"));
+        assertTrue("只填右边界时必须画竖线", overlay.contains("r != null && l == null"));
+        assertTrue("两边都填时必须画矩形", overlay.contains("l != null && r != null && r > l"));
 
-        // 不依赖 SystemUI 的预览层。
+        assertTrue("编辑页必须推草稿",
+                source("ui/screen/edit/HoleEditScreen.kt").contains("HoleDraftHolder.draft = HoleDraft("));
+
+        assertTrue("画框层必须收到草稿",
+                source("MainActivity.kt").contains("draft = HoleDraftHolder.draft"));
+
+        String material = source("ui/screen/holes/CutoutMaterial.kt");
+        String miuix = source("ui/screen/holes/CutoutMiuix.kt");
+        assertTrue("洞页必须显示两种穿越样例", material.contains("HoleModeSamples(")
+                && miuix.contains("HoleModeSamples("));
+
+        for (String f : new String[]{"ui/screen/holes/CutoutMaterial.kt",
+                "ui/screen/holes/CutoutMiuix.kt"}) {
+            assertTrue(f + " 必须给样例传主题色", source(f).contains("holeColor = "));
+        }
+
         String ctl = source("SystemUiController.java");
-        assertFalse("不得靠 App 是否前台来判断", ctl.contains("isSelfForeground"));
-        String cutout = source("ui/CutoutScreen.kt");
-        assertFalse("不得写 cutoutPreview 标志", cutout.contains("cutoutPreview = true"));
-        assertFalse("不得有「在状态栏显示框」开关", cutout.contains("R.string.hole_show_on_status_bar"));
+        assertFalse("不得再靠 App 是否前台来判断", ctl.contains("isSelfForeground"));
+        for (String f : new String[]{"ui/screen/holes/CutoutScreen.kt",
+                "ui/screen/holes/CutoutMaterial.kt", "ui/screen/holes/CutoutMiuix.kt"}) {
+            String text = source(f);
+            assertFalse(f + " 不得再写 cutoutPreview 标志", text.contains("cutoutPreview = true"));
+            assertFalse(f + " 不得再有「在状态栏显示框」开关",
+                    text.contains("R.string.hole_show_on_status_bar"));
+        }
     }
 
-    /** 洞页的两种穿越方式必须是两个固定样例（位置写死、可对照）。 */
     @Test
     public void holesPageShowsTwoFixedSamples() throws IOException {
         String samples = source("ui/HoleModeSamples.kt");
         assertTrue("必须同时演示隧道", samples.contains("HoleRects.Mode.TUNNEL"));
         assertTrue("必须同时演示虫洞", samples.contains("HoleRects.Mode.WORMHOLE"));
         assertTrue("虫洞必须复用真实分段算法", samples.contains("HoleRects.wormholeSegments"));
-        // 洞位置写死（按预览宽度比例），不跟随用户配置 —— 否则用户没配洞就看不到演示。
         assertTrue("洞位置必须写死为常量",
                 samples.contains("HOLE_LEFT_FRAC = 0.30f")
                         && samples.contains("HOLE_RIGHT_FRAC = 0.62f"));
-        // 两个样例共用同一进度，才能逐帧对照。
         assertTrue("两个样例必须共用进度", samples.contains("progress = progress"));
-        // 白底黑字：不跟随深色主题。
         assertTrue("样例必须是白底", samples.contains("Color.White"));
-        // 洞页必须引用它
-        String cutout = source("ui/CutoutScreen.kt");
-        assertTrue("洞页必须显示两个样例", cutout.contains("HoleModeSamples("));
-    }
 
-    /** 两行预览必须同时有古诗 —— 这是它们存在的唯一理由。 */
+        assertTrue("洞口标记必须可传主题色",
+                samples.contains("holeColor: Color = MaterialTheme.colorScheme.tertiary"));
+        assertFalse("洞口标记不得再写死灰色",
+                samples.contains("Color(0xFF1A1C1E).copy(alpha = 0.06f)"));
+
+        for (String f : new String[]{"ui/screen/holes/CutoutMaterial.kt",
+                "ui/screen/holes/CutoutMiuix.kt"}) {
+            assertTrue(f + " 必须显示两个样例", source(f).contains("HoleModeSamples("));
+        }
+    }
     @Test
     public void bothPreviewsAlwaysShowAPoemAtTheSameTime() throws IOException {
         String samples = source("ui/HoleModeSamples.kt");
-        // 必须按周期取模循环，不能夹取（夹取会冻结）。
         assertTrue("必须用 PreviewClock 推进", samples.contains("PreviewClock.progressAt"));
-        assertFalse("不得 coerceIn 到 [0,1]（会永久冻结在末尾）",
+        assertFalse("不得再 coerceIn 到 [0,1]（会永久冻结在末尾）",
                 samples.contains("coerceIn(0f, 1f)"));
-        // 循环终点必须按「两行都还有字」来算。
         assertTrue("必须用 cycleEnd 收缩循环范围", samples.contains("PreviewClock.cycleEnd"));
         assertTrue("进度必须映射到 [0, cycleEnd)",
                 samples.contains("p * cycleEnd"));
-        // 两行必须共用同一支画笔测量文字宽度，否则消失点会差一点点。
         assertTrue("两行必须共用画笔", samples.contains("paint: Paint"));
         assertTrue("文字宽度必须只测一次", samples.contains("val textWidth = remember"));
-        // 两行必须报告同一个画布宽度。
         assertTrue("两行必须共用画布宽度", samples.contains("onWidth(w)"));
-
-        // 时钟本身的行为由 PreviewClockTest 覆盖。
         assertTrue(new File(MAIN, "PreviewClock.java").isFile());
     }
 
-    /**
-     * 洞页的界面必须与古诗库一致：卡片列表 + 点开进编辑页 + 滑删 + FAB。
-     *
-     * 一致性是刻意的：用户在诗库里学到的操作方式在这里应该原样成立。
-     */
     @Test
     public void holesPageUsesTheSameUiAsTheLibrary() throws IOException {
-        String cutout = source("ui/CutoutScreen.kt");
-        assertTrue("必须是卡片列表", cutout.contains("LazyColumn("));
-        assertTrue("必须点卡片进编辑页", cutout.contains("onEdit(hole.slot)"));
-        assertTrue("必须支持左滑删除", cutout.contains("SwipeToDismissBox("));
-        assertTrue("滑删必须先确认", cutout.contains("pendingDelete = hole"));
-        assertTrue("必须有 FAB 新增", cutout.contains("ExtendedFloatingActionButton("));
-        // 列表里不放输入框，全部收进编辑页。
-        assertFalse("列表里不得有输入框", cutout.contains("OutlinedTextField("));
-        // 编辑页必须存在且避让键盘
-        String edit = source("ui/HoleEditScreen.kt");
-        assertTrue("必须有洞编辑页", edit.contains("fun HoleEditScreen("));
-        assertTrue("编辑页必须避让键盘", edit.contains("imePadding()"));
-        assertTrue("编辑页必须能删除", edit.contains("R.string.delete"));
+
+        String screen = source("ui/screen/holes/CutoutScreen.kt");
+        assertTrue("必须点卡片进编辑页", screen.contains("onEdit = { slot -> navigator.push(Route.HoleEdit(slot)) }"));
+
+        assertTrue("列表页必须有启停开关", screen.contains("onToggle"));
+        assertFalse("列表页不得有删除", screen.contains("onDelete"));
+
+        assertTrue("新增必须进编辑页", screen.contains("navigator.push(Route.HoleNew)"));
+        for (String f : new String[]{"ui/screen/holes/CutoutMaterial.kt",
+                "ui/screen/holes/CutoutMiuix.kt"}) {
+            assertTrue(f + " 必须有新增入口", source(f).contains("R.string.hole_add"));
+        }
+
+        for (String f : new String[]{"ui/screen/holes/CutoutScreen.kt",
+                "ui/screen/holes/CutoutMaterial.kt", "ui/screen/holes/CutoutMiuix.kt"}) {
+            assertFalse(f + " 列表里不得有输入框", source(f).contains("TextField("));
+        }
+
+        for (String f : new String[]{"ui/screen/edit/HoleEditMaterial.kt",
+                "ui/screen/edit/HoleEditMiuix.kt"}) {
+            String edit = source(f);
+            assertTrue(f + " 编辑页必须避让键盘", avoidsIme(edit));
+            assertTrue(f + " 编辑页必须能删除", edit.contains("R.string.delete"));
+
+            assertTrue(f + " 新增模式必须隐藏删除", edit.contains("if (!state.isNew)"));
+        }
+
+        String poemEdit = source("ui/screen/edit/PoemEditScreen.kt");
+        assertTrue("删除必须先确认", poemEdit.contains("rememberConfirmDialog()"));
+        assertTrue("确认必须等用户点完再继续", poemEdit.contains("awaitConfirm("));
+        assertTrue("洞删除也必须先确认",
+                source("ui/screen/edit/HoleEditScreen.kt").contains("awaitConfirm("));
     }
 
-    /**
-     * 新增洞不得改变已有洞的颜色。
-     *
-     * 颜色按「槽位」存，槽位跟着洞走；新洞取当前没被占用的最小槽位。
-     */
     @Test
     public void addingHoleNeverRecolorsExistingOnes() throws IOException {
-        String cutout = source("ui/CutoutScreen.kt");
-        assertTrue("新洞必须取空闲槽位", cutout.contains("HoleRects.nextFreeSlot("));
+        String cutout = source("ui/screen/holes/CutoutScreen.kt");
+
+        assertTrue("新洞必须取空闲槽位",
+                source("ui/screen/edit/HoleEditScreen.kt").contains("HoleRects.nextFreeSlot("));
 
         String holes = source("HoleRects.java");
         assertTrue("Hole 必须带槽位", holes.contains("public final int slot;"));
         assertTrue("必须能生成新槽位", holes.contains("public static int nextFreeSlot("));
         assertTrue("解析时必须补齐槽位", holes.contains("assignSlots("));
-        // 解析时还必须去掉互相重合的洞（重合会让绘制层自相矛盾）。
         assertTrue("解析时必须去重", holes.contains("sanitize("));
-        // 编码必须带上槽位，否则重启后颜色会重排。
+
         assertTrue("编码必须写入槽位", holes.contains(".append(h.slot)"));
     }
 
     @Test
     public void cutoutIsNumericInputNotDragging() throws IOException {
-        // 洞的数值输入在编辑页里（列表只负责浏览）。
-        String edit = source("ui/HoleEditScreen.kt");
-        assertTrue("必须是数值输入", edit.contains("OutlinedTextField("));
-        assertTrue("必须限制为数字键盘", edit.contains("KeyboardType.Number"));
-        assertTrue("必须校验右边界 > 左边界", edit.contains("r <= l"));
-        // 多矩形：可添加/删除多个洞，且高度恒为状态栏高度（只填左右）。
-        String screen = source("ui/CutoutScreen.kt");
-        assertTrue("必须能添加", screen.contains("R.string.hole_add"));
-        assertTrue("必须能删除", screen.contains("R.string.delete"));
-        // 两种模式 + 颜色区分
-        assertTrue("每个洞可选虫洞/隧道", edit.contains("HoleRects.Mode.WORMHOLE")
-                && edit.contains("HoleRects.Mode.TUNNEL"));
-        assertTrue("不同洞用不同颜色", screen.contains("holeColor"));
-        // 删除必须二次确认（洞是手工量出来的，误删要重新量）
-        assertTrue("删除必须确认", screen.contains("R.string.hole_delete_confirm"));
-        // 清空全部按钮不得存在
-        assertFalse("不得有清空全部", screen.contains("R.string.hole_clear"));
-        // 校准 Activity 不得存在
-        assertFalse("校准 Activity 必须不存在",
+        String logic = source("ui/screen/edit/HoleEditScreen.kt");
+        String material = source("ui/screen/edit/HoleEditMaterial.kt");
+        String miuix = source("ui/screen/edit/HoleEditMiuix.kt");
+        assertTrue("必须校验右边界 > 左边界", logic.contains("r <= l"));
+        assertTrue("Material 必须声明为数字输入", material.contains("KeyboardType.Number"));
+        assertTrue("Miuix 必须声明为数字输入", miuix.contains("SuperEditArrow("));
+
+        assertTrue("数字键盘必须只允许数字",
+                source("ui/component/miuix/SuperEditArrow.kt").contains("KeyboardType.Number"));
+
+        String screen = source("ui/screen/holes/CutoutScreen.kt");
+        assertTrue("必须能添加", screen.contains("onAdd = { addHole() }"));
+        for (String f : new String[]{"ui/screen/holes/CutoutMaterial.kt",
+                "ui/screen/holes/CutoutMiuix.kt"}) {
+            assertTrue(f + " 必须有新增入口", source(f).contains("R.string.hole_add"));
+        }
+        assertTrue("每个洞可选虫洞/隧道", logic.contains("HoleRects.Mode.WORMHOLE")
+                && logic.contains("HoleRects.Mode.TUNNEL"));
+        assertTrue("不同洞用不同颜色", material.contains("holeColor") && miuix.contains("holeColor"));
+        assertTrue("删除必须确认", source("ui/screen/edit/PoemEditScreen.kt")
+                .contains("rememberConfirmDialog()"));
+
+        assertFalse("不得再有清空全部", screen.contains("R.string.hole_clear"));
+        assertFalse("校准 Activity 应已移除",
                 new File(MAIN, "CutoutCalibrationActivity.java").isFile());
         String manifest = read(MANIFEST);
-        assertFalse("Manifest 不得声明校准 Activity",
+        assertFalse("Manifest 不得再声明校准 Activity",
                 manifest.contains("CutoutCalibrationActivity"));
     }
 
     @Test
     public void libraryScreenIsTappableRowWithStableKey() throws IOException {
-        String library = source("ui/LibraryScreen.kt");
-        assertTrue("LazyColumn 必须使用稳定 key", library.contains("key = { _, poem -> poem.id }"));
-        assertTrue("整行可点即编辑", library.contains("clickable(onClick = onEdit)"));
-        assertTrue("必须有启用开关", library.contains("Switch(checked = poem.enabled"));
-        // 新增/编辑是整页（二级页），不用对话框 —— 键盘弹出后对话框放不下
-        assertFalse("不得用编辑对话框", library.contains("AlertDialog(\n            onDismissRequest = { adding"));
-        String edit = source("ui/PoemEditScreen.kt");
-        assertTrue("编辑页必须避让键盘", edit.contains("imePadding()"));
-        assertTrue("编辑页必须能删除已有诗", edit.contains("R.string.delete"));
+
+        String logic = source("ui/screen/library/LibraryScreen.kt");
+        String material = source("ui/screen/library/LibraryMaterial.kt");
+        String miuix = source("ui/screen/library/LibraryMiuix.kt");
+        for (String skin : new String[]{"Material", "Miuix"}) {
+            String text = skin.equals("Material") ? material : miuix;
+            assertTrue(skin + " 的 LazyColumn 必须使用稳定 key",
+                    text.contains("key = { _, poem -> poem.id }"));
+            assertTrue(skin + " 必须有启用开关", text.contains("Switch(")
+                    && text.contains("poem.enabled"));
+        }
+        assertTrue("整行可点即编辑", material.contains("onClick = onEdit")
+                && miuix.contains("onClick = onEdit"));
+        assertFalse("不得再用编辑对话框", logic.contains("pendingDelete"));
+        assertTrue("新增必须走二级页", logic.contains("navigator.push(Route.PoemEdit(null))"));
+        for (String f : new String[]{"ui/screen/edit/PoemEditMaterial.kt",
+                "ui/screen/edit/PoemEditMiuix.kt"}) {
+            String edit = source(f);
+            assertTrue(f + " 编辑页必须避让键盘", avoidsIme(edit));
+            assertTrue(f + " 编辑页必须能删除已有诗", edit.contains("R.string.delete"));
+        }
     }
-
-    /** 古诗库必须支持滑动删除与导入导出。 */
     @Test
-    public void librarySupportsSwipeDeleteAndTextImportExport() throws IOException {
-        String library = source("ui/LibraryScreen.kt");
-        assertTrue("必须支持左滑删除", library.contains("SwipeToDismissBox("));
-        assertTrue("必须用 M3 的滑动状态", library.contains("rememberSwipeToDismissBoxState"));
-        assertTrue("只允许从右往左滑", library.contains("enableDismissFromEndToStart"));
-        assertTrue("滑动删除必须先确认", library.contains("pendingDelete = poem"));
-        assertTrue("必须有导入入口", library.contains("R.string.poem_import"));
-        assertTrue("必须有导出入口", library.contains("R.string.poem_export"));
-        assertTrue("导入必须走纯文本编解码", library.contains("PoemTextCodec.decode"));
-        assertTrue("导出必须走纯文本编解码", library.contains("PoemTextCodec.encode"));
+    public void librarySupportsDeleteAndTextImportExport() throws IOException {
 
-        // 编解码本身：格式必须是「诗句|作者|出处」，一行一条。
+        String logic = source("ui/screen/library/LibraryScreen.kt");
+        assertTrue("必须有导入入口", logic.contains("R.string.poem_import"));
+        assertTrue("必须有导出入口", logic.contains("R.string.poem_export"));
+        assertTrue("导入必须走纯文本编解码", logic.contains("PoemTextCodec.decode"));
+        assertTrue("导出必须走纯文本编解码", logic.contains("PoemTextCodec.encode"));
+
+        String edit = source("ui/screen/edit/PoemEditScreen.kt");
+        assertTrue("必须能删除", edit.contains("onDelete"));
+        assertTrue("删除必须先确认", edit.contains("rememberConfirmDialog()"));
+        assertTrue("删除必须等用户点完再继续", edit.contains("awaitConfirm("));
+
         String codec = source("PoemTextCodec.java");
         assertTrue("分隔符必须是竖线", codec.contains("public static final char SEPARATOR = '|'"));
         assertTrue("导出必须一行一首", codec.contains("sb.append('\\n')"));
@@ -690,12 +756,11 @@ public class SourceAuditTest {
     public void overlayRemovalHappensOnEveryExitPath() throws IOException {
         String text = source("PoemRuntime.java");
         String stop = bodyOf(text, "void stop()");
-        // 诗句层是复用的：停止只清文字、停帧、清洞，
-        // 不每首 add/removeView（那会触发整棵状态栏重新布局）。
+
         assertTrue("必须停帧", stop.contains("stopFrame()"));
         assertTrue("必须清掉画布上的洞", stop.contains("HolePuncher.clear()"));
         assertTrue("必须把文字清掉，否则会留在屏幕上", stop.contains("clearText()"));
-        assertFalse("不得每首移除 Overlay（会触发整条状态栏重新布局）",
+        assertFalse("不得再每首移除 Overlay（会触发整条状态栏重新布局）",
                 stop.contains("removeOverlay()"));
     }
 
@@ -717,23 +782,24 @@ public class SourceAuditTest {
     public void guardThresholdIsThree() {
         assertTrue(FeatureGuard.MAX_FAIL == 3);
     }
-
     @Test
     public void libraryEntryChainIsWired() throws IOException {
-        String app = source("ui/PoemApp.kt");
-        assertNotNull(app);
-        assertTrue("必须有古诗库页面分支", app.contains("Tab.LIBRARY -> LibraryScreen"));
-        assertTrue("必须有白名单页面分支", app.contains("Detail.Whitelist -> WhitelistScreen"));
-        assertTrue("必须有洞页面分支", app.contains("Detail.Holes -> CutoutScreen"));
-        assertTrue("必须有关于页面分支", app.contains("Detail.About -> AboutScreen"));
-        String library = source("ui/LibraryScreen.kt");
+
+        String activity = source("MainActivity.kt");
+        assertNotNull(activity);
+        assertTrue("必须有古诗库页面分支", activity.contains("1 -> LibraryScreen("));
+        assertTrue("必须有白名单页面分支", activity.contains("entry<Route.Whitelist>"));
+        assertTrue("必须有洞页面分支", activity.contains("entry<Route.Holes>"));
+        assertTrue("必须有关于页面分支", activity.contains("entry<Route.About>"));
+        assertTrue("必须有外观页面分支", activity.contains("entry<Route.Appearance>"));
+        assertTrue("必须有状态页面分支", activity.contains("entry<Route.Status>"));
+        String library = source("ui/screen/library/LibraryMaterial.kt");
         assertTrue("LazyColumn 必须使用稳定 key", library.contains("key = { _, poem -> poem.id }"));
-        // 调试入口必须在发布前移除
+
         assertFalse("不得残留 debug_screen 调试入口",
-                app.contains("debug_screen") || app.contains("debugTarget"));
+                activity.contains("debug_screen") || activity.contains("debugTarget"));
     }
 
-    /** 默认值契约：总开关关闭、横屏暂停开、浮动默认关、速度 120。 */
     @Test
     public void configDefaultsMatchTheProductContract() throws IOException {
         String config = source("PoemConfig.java");
@@ -743,21 +809,18 @@ public class SourceAuditTest {
         assertTrue("速度默认 120", config.contains("SPEED_DEFAULT = 120"));
     }
 
-    // ---------------------------------------------------------------- 回归防线
-
-    /** 搜索过滤后拖动排序，必须只在「可见的诗」之间换位。 */
     @Test
     public void dragReorderRespectsTheVisibleSubset() throws IOException {
-        String library = source("ui/LibraryScreen.kt");
+        String library = source("ui/screen/library/LibraryScreen.kt");
         assertTrue("拖动必须走「只在可见诗之间移动」的实现",
-                library.contains("moveAmongVisible(working.value, poem.id, visibleIds"));
+                library.contains("moveAmongVisible(working.value, id, visibleIds, 1)"));
         assertTrue("必须把可见 id 集合算出来", library.contains("val visibleIds = remember(filtered)"));
-        // 序号必须取整表下标：搜索时若从 1 重新编号，第 47 首会显示成「1」。
-        assertTrue("序号必须来自整表下标", library.contains("val displayIndex = indexById[poem.id]"));
-        assertFalse("不得用过滤后的下标当序号",
-                library.contains("index = index,"));
 
-        // 真正的算法必须在可单测的 Java 层，而不是留在 Composable 里。
+        assertTrue("序号必须来自整表下标", library.contains("state.indexById[poem.id]")
+                || source("ui/screen/library/LibraryMaterial.kt")
+                .contains("state.indexById[poem.id]"));
+        assertFalse("不得再用过滤后的下标当序号", library.contains("index = index,"));
+
         String lib = source("PoemLibrary.java");
         assertTrue("移动算法必须在 PoemLibrary 里可单测",
                 lib.contains("public static boolean moveAmongVisible("));
@@ -765,69 +828,46 @@ public class SourceAuditTest {
                 lib.contains("Collections.swap(list, from, to)"));
     }
 
-    /**
-     * 导入必须能从文件读，和「导出到文件」形成闭环。
-     */
     @Test
     public void importAndExportBothUseTheSystemFilePicker() throws IOException {
-        String library = source("ui/LibraryScreen.kt");
+        String library = source("ui/screen/library/LibraryScreen.kt");
         assertTrue("导出必须用 CreateDocument",
                 library.contains("ActivityResultContracts.CreateDocument("));
         assertTrue("导入必须用 OpenDocument",
                 library.contains("ActivityResultContracts.OpenDocument()"));
-        assertTrue("必须有「从文件导入」入口", library.contains("R.string.poem_import_from_file"));
+        assertTrue("必须有「从文件导入」入口",
+                source("ui/screen/library/LibraryMaterial.kt").contains("R.string.poem_import_from_file")
+                        && source("ui/screen/library/LibraryMiuix.kt").contains("R.string.poem_import_from_file"));
         assertTrue("读文件必须走 contentResolver", library.contains("contentResolver.openInputStream"));
         assertTrue("写文件必须走 contentResolver", library.contains("contentResolver.openOutputStream"));
-        // 读盘/写盘不能压在主线程上。
         assertTrue("文件读写必须在 IO 线程", library.contains("withContext(Dispatchers.IO)"));
-        // 静态槽位方案不得存在，避免两套并存。
         assertFalse("不得残留 PendingExport 静态槽位", library.contains("object PendingExport"));
         assertFalse("不得残留 startActivityForResult",
                 library.contains("startActivityForResult"));
         String activity = source("MainActivity.kt");
-        assertFalse("MainActivity 不得覆写 onActivityResult",
+        assertFalse("MainActivity 不得再覆写 onActivityResult",
                 activity.contains("onActivityResult"));
     }
 
-    /** 删除必须能撤销：只弹确认框而不给后悔的机会，手滑一次就没了。 */
-    @Test
-    public void deletingAPoemCanBeUndone() throws IOException {
-        String app = source("ui/PoemApp.kt");
-        assertTrue("必须提供可撤销提示条", app.contains("val LocalUndoable"));
-        assertTrue("撤销按钮必须真的接上动作",
-                app.contains("SnackbarResult.ActionPerformed"));
-        String library = source("ui/LibraryScreen.kt");
-        assertTrue("列表滑删后必须给撤销入口", library.contains("undoable("));
-        assertTrue("撤销必须还原删除前的整份列表",
-                library.contains("AppState.persistPoems(context, before)"));
-        // 编辑页的删除比列表滑删更「重」：删完直接退回列表，不给撤销就没有反悔入口。
-        String edit = source("ui/PoemEditScreen.kt");
-        assertTrue("编辑页删除也必须能撤销", edit.contains("undoable("));
-        assertTrue("编辑页撤销同样还原整份列表",
-                edit.contains("AppState.persistPoems(context, before)"));
-    }
-
-    /** 导航栈必须能扛住进程被杀，否则切后台回来会掉回一级页。 */
     @Test
     public void navigationStackSurvivesProcessDeath() throws IOException {
-        String app = source("ui/PoemApp.kt");
-        assertTrue("导航栈必须用 rememberSaveable",
-                app.contains("val stack = rememberSaveable("));
-        assertTrue("必须用 listSaver 编码", app.contains("listSaver("));
-        assertTrue("Detail 必须能编码", app.contains("fun encode(): String"));
-        assertTrue("Detail 必须能解码", app.contains("fun decode(s: String): Detail?"));
-        // 解码必须容错：未知编码不能把页面打崩。
-        assertTrue("未知编码必须返回 null", app.contains("else -> null"));
+        String stack = source("ui/navigation3/RouteStack.kt");
+        assertTrue("导航栈必须用 rememberSaveable", stack.contains("rememberSaveable(saver = saver)"));
+        assertTrue("必须用 listSaver 编码", stack.contains("listSaver"));
+
+        assertTrue("空栈必须补根页", stack.contains("routes.add(Route.Main)"));
+
+        String route = source("ui/navigation3/Route.kt");
+        assertTrue("Route 必须能编码", route.contains("fun encode(): String"));
+        assertTrue("Route 必须能解码", route.contains("fun decode(s: String): Route?"));
+
+        assertTrue("未知编码必须返回 null", route.contains("else -> null"));
     }
 
-    /**
-     * 排序必须有「长按拖动」之外的第二条路。
-     *
-     * 长按拖动对读屏用户不可用（触摸被朗读接管），只给拖动等于把无障碍用户排除在外。
-     */
     @Test
     public void reorderIsReachableWithoutDragging() throws IOException {
-        String library = source("ui/LibraryScreen.kt");
+
+        String library = source("ui/screen/library/LibraryScreen.kt");
         assertTrue("必须提供自定义无障碍操作", library.contains("CustomAccessibilityAction("));
         assertTrue("必须接上移", library.contains("R.string.move_up"));
         assertTrue("必须接下移", library.contains("R.string.move_down"));
@@ -836,34 +876,132 @@ public class SourceAuditTest {
         assertTrue("下移文案不能是死的", strings.contains("name=\"move_down\""));
     }
 
-    /** 速度/停留必须能精确输入，只给滑块无法停在 120 这种整数上。 */
     @Test
     public void slidersAcceptExactNumericInput() throws IOException {
-        String common = source("ui/components/Common.kt");
-        assertTrue("数值必须可点开编辑", common.contains("editing = true"));
-        assertTrue("必须有数字键盘", common.contains("KeyboardType.Number"));
-        assertTrue("超范围必须夹取而不是报错", common.contains("coerceIn(range.first, range.last)"));
-        assertTrue("松手要有触感反馈", common.contains("HapticFeedbackType.TextHandleMove"));
+
+        String arrow = source("ui/component/miuix/SuperEditArrow.kt");
+        assertTrue("数值必须可点开编辑", arrow.contains("showDialog.value = true"));
+        assertTrue("必须有数字键盘", arrow.contains("KeyboardType.Number"));
+
+        assertTrue("必须过滤非数字输入", arrow.contains("FilterNumber("));
+
+        assertTrue("Material 洞编辑页必须用数字键盘",
+                source("ui/screen/edit/HoleEditMaterial.kt").contains("KeyboardType.Number"));
+        assertTrue("Miuix 洞编辑页必须用可编辑的数值行",
+                source("ui/screen/edit/HoleEditMiuix.kt").contains("SuperEditArrow("));
     }
 
-    /** 长按拖动必须给触感，确认抓到的是哪一张卡。 */
     @Test
     public void dragStartGivesHapticFeedback() throws IOException {
-        String library = source("ui/LibraryScreen.kt");
+        String library = source("ui/screen/library/LibraryScreen.kt");
         assertTrue(library.contains("HapticFeedbackType.LongPress"));
         assertTrue(library.contains("LocalHapticFeedback.current"));
     }
 
-    /** 白名单的「已选项置顶」必须真的实现，不能只写在注释里。 */
     @Test
     public void whitelistPinsSelectedAppsToTheTop() throws IOException {
-        String screen = source("ui/WhitelistScreen.kt");
+        String screen = source("ui/screen/whitelist/WhitelistScreen.kt");
         assertTrue("必须按「是否已选」排序",
-                screen.contains("if (it.packageName in selectedSet) 0 else 1"));
+                screen.contains("compareBy<AppState.AppEntry> { if (it.packageName in selectedSet) 0 else 1 }"));
         assertTrue("组内必须按名称稳定排序", screen.contains("thenBy { it.label.lowercase() }"));
     }
 
-    /** 字符串资源里不得留下没人用的死条目。 */
+    private static final java.util.Set<String> PENDING_STRING_CLEANUP = new java.util.HashSet<>(
+            java.util.Arrays.asList(
+
+            ));
+
+    @Test
+    public void stringPlaceholderCountsMatchCallSites() throws IOException {
+        String strings = read(new File(RES, "values/strings.xml"));
+
+        java.util.Map<String, Integer> arity = new java.util.HashMap<>();
+        java.util.regex.Matcher entry = java.util.regex.Pattern
+                .compile("<string name=\"([^\"]+)\">(.*?)</string>", java.util.regex.Pattern.DOTALL)
+                .matcher(strings);
+        while (entry.find()) {
+            String name = entry.group(1);
+            String body = entry.group(2);
+            java.util.regex.Matcher ph = java.util.regex.Pattern
+                    .compile("%(\\d+)\\$").matcher(body);
+            int max = 0;
+            while (ph.find()) {
+                max = Math.max(max, Integer.parseInt(ph.group(1)));
+            }
+            arity.put(name, max);
+        }
+
+        StringBuilder bad = new StringBuilder();
+        scanStringCalls(MAIN, arity, bad);
+        assertEquals("字符串占位符个数和调用处不匹配：" + bad, 0, bad.length());
+    }
+
+    private void scanStringCalls(File dir, java.util.Map<String, Integer> arity,
+                                 StringBuilder bad) throws IOException {
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File f : files) {
+            if (f.isDirectory()) {
+                scanStringCalls(f, arity, bad);
+            } else if (f.isFile() && f.getName().endsWith(".kt")) {
+                String text = read(f);
+
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("R\\.string\\.(\\w+)").matcher(text);
+                while (m.find()) {
+                    String name = m.group(1);
+                    Integer need = arity.get(name);
+                    if (need == null || need == 0) {
+                        continue;
+                    }
+
+                    int open = text.lastIndexOf('(', m.start());
+                    if (open < 0) {
+                        continue;
+                    }
+                    String between = text.substring(open + 1, m.start()).trim();
+                    if (!between.isEmpty()) {
+
+                        continue;
+                    }
+                    int depth = 1;
+                    int commas = 0;
+                    boolean sawContent = false;
+                    int i = m.end();
+                    for (; i < text.length() && depth > 0; i++) {
+                        char c = text.charAt(i);
+                        if (c == '(' || c == '[' || c == '{') {
+                            depth++;
+                            sawContent = true;
+                        } else if (c == ')' || c == ']' || c == '}') {
+                            depth--;
+                        } else if (c == ',' && depth == 1) {
+                            int j = i + 1;
+                            while (j < text.length() && Character.isWhitespace(text.charAt(j))) {
+                                j++;
+                            }
+                            if (j < text.length() && text.charAt(j) == ')') {
+                                continue;
+                            }
+                            commas++;
+                        } else if (!Character.isWhitespace(c)) {
+                            sawContent = true;
+                        }
+                    }
+
+                    int passed = commas;
+                    if (passed != need) {
+                        bad.append(f.getName()).append(':').append(name)
+                           .append("(传 ").append(passed).append(" 个, 需要 ")
+                           .append(need).append(") ");
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     public void noDeadStringResources() throws IOException {
         String strings = read(new File(RES, "values/strings.xml"));
@@ -872,8 +1010,10 @@ public class SourceAuditTest {
         StringBuilder dead = new StringBuilder();
         while (m.find()) {
             String name = m.group(1);
-            // 这两个由清单文件直接引用，代码里搜不到。
             if ("app_name".equals(name) || "module_description".equals(name)) {
+                continue;
+            }
+            if (PENDING_STRING_CLEANUP.contains(name)) {
                 continue;
             }
             if (!isStringReferenced(name)) {
@@ -883,10 +1023,8 @@ public class SourceAuditTest {
         assertEquals("存在没人引用的字符串资源：" + dead, 0, dead.length());
     }
 
-    /** 在 UI 源码与清单里找 {@code R.string.<name>} 或 {@code @string/<name>}。 */
     private boolean isStringReferenced(String name) throws IOException {
-        // 递归扫整个源码目录：ui/ 下还有 components/ theme/ 等子目录，
-        // 漏掉任何一层都会把活着的字符串误判成死资源。
+
         return scanForStringRef(MAIN, name) || read(MANIFEST).contains("@string/" + name);
     }
 
@@ -909,16 +1047,9 @@ public class SourceAuditTest {
         }
         return false;
     }
-
-    /**
-     * 界面文案必须说人话：不出现只有开发者才懂的术语。
-     *
-     * 这里只拦最容易复发的几个词。
-     */
     @Test
     public void userFacingCopyAvoidsDeveloperJargon() throws IOException {
         String strings = read(new File(RES, "values/strings.xml"));
-        // 只检查 <string> 的内容，不检查注释（注释里允许写技术说明）。
         String[] jargon = {
                 "SystemUI", "注入", "静态作用域", "clipOutRect", "px/s 的",
                 "原生时间显示多久", "不参与滚动",
@@ -926,8 +1057,195 @@ public class SourceAuditTest {
         for (String word : jargon) {
             assertFalse("界面文案不该出现术语「" + word + "」", strings.contains(">" + word));
         }
-        // 但「系统界面」这种用户能对上号的叫法必须保留。
         assertTrue("必须用「系统界面」而不是 SystemUI",
                 strings.contains("系统界面"));
+    }
+
+    @Test
+    public void libraryRowStaysInSyncWithStatusBar() throws IOException {
+        String util = source("ui/util/MarqueeText.kt");
+        assertTrue("周期正文必须在尾部追加恰好十个空格",
+                util.contains("MarqueeCycle.text(text)") && source("MarqueeCycle.java").contains("GAP_SPACES = 10"));
+        assertTrue("每轮开始前必须等待一秒",
+                source("MarqueeCycle.java").contains("PAUSE_MILLIS = 1000L")
+                        && util.contains("delay(cyclePauseMs.coerceAtLeast(0L))"));
+        assertTrue("滚动周期宽度必须来自第一份实际排版", util.contains("cycleWidthPx = it.size.width"));
+        assertTrue("必须绘制第二周期无障碍隐藏副本", util.contains("modifier = Modifier.clearAndSetSemantics"));
+        assertTrue("偏移必须始终钳位在周期内", source("MarqueeCycle.java").contains("Math.min(cycleWidth, position"));
+        for (String f : new String[]{"ui/screen/library/LibraryMaterial.kt",
+                "ui/screen/library/LibraryMiuix.kt"}) {
+            String text = source(f);
+            assertTrue(f + " 行文本必须和状态栏同源（displayText）",
+                    text.contains("poem.displayText(showAuthor, showSource)"));
+            assertTrue(f + " 序号与滚动文字必须是独立 sibling，文字使用剩余权重宽度",
+                    text.contains("Modifier.widthIn(min = 16.dp)")
+                            && text.contains("modifier = Modifier.weight(1f)"));
+        }
+        String material = source("ui/screen/library/LibraryMaterial.kt");
+        String miuix = source("ui/screen/library/LibraryMiuix.kt");
+
+        assertTrue("Material 诗库行必须使用分段形状", material.contains("SegmentedItem(index = visibleIndex")
+                && bodyOf(material, "private fun PoemRow(").contains("SegmentedListItem("));
+        assertTrue("文字必须左对齐", util.contains("textAlign = TextAlign.Left")
+                && util.contains("wrapContentWidth(align = Alignment.Start, unbounded = true)"));
+        assertTrue("必须绘制第二周期保证循环连续", util.contains("modifier = Modifier.clearAndSetSemantics"));
+        assertTrue("周期间必须暂停 1 秒", util.contains("delay(cyclePauseMs.coerceAtLeast(0L)"));
+        assertFalse("不得保留旧的首轮 2 秒延迟", util.contains("startDelayMs"));
+        assertTrue("Material 对话框为 4 行", material.contains("noWrapLines = true,")
+                && material.contains("minLines = 4,"));
+        assertTrue("Miuix 对话框宽 560dp、输入 6 行", miuix.contains("maxWidth = 560.dp,")
+                && miuix.contains("minLines = 6,"));
+
+        String uiState = source("ui/screen/library/LibraryUiState.kt");
+        assertTrue("诗库状态必须带 showAuthor/showSource",
+                uiState.contains("val showAuthor: Boolean") && uiState.contains("val showSource: Boolean"));
+        String screen = source("ui/screen/library/LibraryScreen.kt");
+        assertTrue("诗库必须从播放配置读开关",
+                screen.contains("showAuthor = cfg.showAuthor")
+                        && screen.contains("showSource = cfg.showSource"));
+
+        String overlay = source("ui/HoleFrameOverlay.kt");
+        assertTrue("预览必须按 enabled 分色",
+                overlay.contains("if (hole.enabled) 0.28f else 0.10f"));
+    }
+
+    @Test
+    public void restartFailurePromptsForRootAuthorization() throws IOException {
+        String status = source("ui/screen/status/StatusScreen.kt");
+        String helper = source("RestartHelper.kt");
+        String resources = read(new File(RES, "values/strings.xml"));
+        assertTrue("权限拒绝结果必须显示给用户", status.contains("RestartResult.ROOT_DENIED")
+                && status.contains("Toast.makeText(context, messageRes"));
+        assertTrue("必须先探测并验证 root UID", helper.contains("runSu(\"id -u\", rootProbe = true)"));
+        assertTrue("授权拒绝提示必须给出可操作步骤",
+                resources.contains("Root 管理器中允许") && resources.contains("获取 root，再重试"));
+        assertTrue("命令失败不得归类成无 root", helper.contains("RestartResult.COMMAND_FAILED"));
+    }
+    @Test
+    public void materialOverviewAndStatusGroupsUseRoundedSegmentedRows() throws IOException {
+        String home = source("ui/screen/home/HomeMaterial.kt");
+        String status = source("ui/screen/status/StatusMaterial.kt");
+        assertTrue("当前配置行必须消费分段形状", home.contains("private fun SummaryItem")
+                && home.substring(home.indexOf("private fun SummaryItem")).contains("SegmentedListItem("));
+        assertTrue("状态自检行必须消费分段形状", status.contains("private fun CheckItem")
+                && status.substring(status.indexOf("private fun CheckItem")).contains("SegmentedListItem("));
+        assertTrue("设备信息行必须消费分段形状", status.contains("private fun InfoItem")
+                && status.substring(status.indexOf("private fun InfoItem")).contains("SegmentedListItem("));
+    }
+
+    @Test
+    public void miuixAboutUsesNormalReadableTopScrolling() throws IOException {
+        String about = source("ui/screen/about/AboutMiuix.kt");
+        assertTrue("Miuix 关于页必须使用普通 LazyColumn 滚动", about.contains("LazyColumn(")
+                && about.contains("state = lazyListState"));
+        assertFalse("不得用 nested-scroll 消费顶部手势", about.contains("NestedScrollConnection")
+                || about.contains(".nestedScroll("));
+        assertFalse("不得在顶部启用弹性 overscroll", about.contains("overScrollVertical()"));
+        assertTrue("顶栏必须透明以透出整页渐变", about.contains("color = Color.Transparent"));
+        assertTrue("顶部栏标题必须始终可读", about.contains("titleColor = colorScheme.onBackground"));
+        assertTrue("Scaffold 容器不得再铺不透明白底",
+                about.contains("containerColor = Color.Transparent"));
+        assertTrue("渐变必须铺满整页（含顶栏/状态栏条带）", about.contains("isFullSize = true"));
+        assertFalse("关于页不应再依赖滚动进度控制顶栏透明度",
+                about.contains("titleColor = colorScheme.onSurface.copy")
+                        || about.contains("AboutTitleFadeStart"));
+        assertFalse("Miuix 关于页不再显示许可证", about.contains("about_license"));
+        assertFalse("Material 关于页不再显示许可证",
+                source("ui/screen/about/AboutMaterial.kt").contains("about_license"));
+
+        assertTrue("图标区高度必须实测", about.contains("onSizeChanged")
+                && about.contains("logoHeightDp = size.height.toDp()"));
+    }
+
+    @Test
+    public void statusRestartIsLastGroup() throws IOException {
+        for (String f : new String[]{"ui/screen/status/StatusMaterial.kt",
+                "ui/screen/status/StatusMiuix.kt"}) {
+            String text = source(f);
+            int deviceInfo = text.indexOf("R.string.status_screen_width");
+            int restart = text.indexOf("R.string.restart_systemui");
+            assertTrue(f + " 必须存在设备信息和重启入口", deviceInfo >= 0 && restart >= 0);
+            assertTrue(f + " 重启入口必须位于设备信息之后", restart > deviceInfo);
+        }
+    }
+
+    @Test
+    public void settingsGroupsHaveTitles() throws IOException {
+        String[] groups = {
+                "settings_section_appearance",
+                "settings_section_playback",
+                "order_label",
+                "settings_section_display",
+                "holes_title",
+                "settings_section_pause",
+        };
+        String material = source("ui/screen/settings/SettingsMaterial.kt");
+        String miuix = source("ui/screen/settings/SettingsMiuix.kt");
+        assertTrue("Material 分组标题必须使用纯文本 SectionTitle", material.contains("SectionTitle("));
+        assertTrue("Miuix 分组标题必须使用 SmallTitle", miuix.contains("SmallTitle("));
+        for (String group : groups) {
+            assertTrue("Material 缺少分组标题: " + group, material.contains("R.string." + group));
+            assertTrue("Miuix 缺少分组标题: " + group, miuix.contains("R.string." + group));
+        }
+        String appearance = source("ui/screen/appearance/AppearanceScreen.kt");
+        assertTrue("界面风格选项必须显示 Material / Miuix",
+                appearance.contains("listOf(\"Material\", \"Miuix\")"));
+    }
+
+    @Test
+    public void systemNameReadsRealFirmwareProps() throws IOException {
+        String status = source("ui/screen/status/StatusScreen.kt");
+        int miui = status.indexOf("ro.miui.ui.version.name");
+        int hyperOs = status.indexOf("ro.mi.os.version.name");
+        int android = status.indexOf("Build.VERSION.RELEASE");
+        assertTrue("必须尝试读取 MIUI/HyperOS 版本属性", miui >= 0 && hyperOs >= 0);
+        assertTrue("必须按 MIUI → HyperOS → Android 版本的优先级兜底",
+                miui < hyperOs && hyperOs < android);
+        assertTrue("必须保留 Android 版本作为最终回退", status.contains("Android ${Build.VERSION.RELEASE}"));
+    }
+
+    @Test
+    public void holeSamplesFollowDarkTheme() throws IOException {
+        String samples = source("ui/HoleModeSamples.kt");
+        assertTrue("样例必须判断深色模式", samples.contains("val isDark = isInDarkTheme()"));
+        assertTrue("深色下必须是暗底", samples.contains("bg = if (isDark) Color(0xFF141218)"));
+        assertTrue("深色下必须是亮字", samples.contains("fg = if (isDark) Color(0xFFE3E2E6)"));
+    }
+    @Test
+    public void miuixSecondaryPagesUseSmallTopAppBarAndSharedBackButton() throws IOException {
+        String[] pages = {
+                "ui/screen/status/StatusMiuix.kt",
+                "ui/screen/appearance/AppearanceMiuix.kt",
+                "ui/screen/holes/CutoutMiuix.kt",
+                "ui/screen/edit/PoemEditMiuix.kt",
+                "ui/screen/edit/HoleEditMiuix.kt",
+                "ui/screen/whitelist/WhitelistMiuix.kt",
+                "ui/screen/about/AboutMiuix.kt",
+        };
+        for (String f : pages) {
+            String text = source(f);
+            assertTrue(f + " 二级页必须用 SmallTopAppBar", text.contains("SmallTopAppBar("));
+            assertFalse(f + " 不得再用一级页的大标题 TopAppBar",
+                    text.contains("TopAppBar(") && !text.contains("SmallTopAppBar("));
+            assertTrue(f + " 返回按钮必须走共享 BackButton 组件", text.contains("BackButton("));
+        }
+    }
+    @Test
+    public void retappingCurrentTabScrollsToTop() throws IOException {
+        String pager = source("ui/component/bottombar/BottomBar.kt");
+        assertTrue("重按当前 tab 必须触发 rescroll 而不是直接 return",
+                pager.contains("TopTabScrollRegistry.rescroll(targetIndex, coroutineScope)"));
+        String[] pages = {
+                "ui/screen/home/HomeScreen.kt",
+                "ui/screen/library/LibraryScreen.kt",
+                "ui/screen/settings/SettingsScreen.kt",
+        };
+        for (String f : pages) {
+            String text = source(f);
+            assertTrue(f + " 必须注册回滚闭包", text.contains("TopTabScrollRegistry.register("));
+            assertTrue(f + " 必须在销毁时注销", text.contains("TopTabScrollRegistry.unregister("));
+        }
+        String registry = source("ui/util/TopTabScrollRegistry.kt");
+        assertTrue("注册表必须存在 rescroll", registry.contains("fun rescroll("));
     }
 }

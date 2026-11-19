@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">状态栏古诗</string>
-    <!-- 现代 libxposed 模块用 android:description 作为模块描述（不再用 xposeddescription）。 -->
     <string name="module_description">诗句从状态栏右侧滚入，只遮住诗句正下方那一小段，播完把时钟还给你，停一会儿再播下一首。完全离线，省电。只作用于系统界面。</string>
 
-    <!-- 导航 -->
     <string name="tab_overview">概览</string>
     <string name="tab_library">古诗库</string>
     <string name="tab_settings">设置</string>
@@ -13,32 +11,26 @@
     <string name="holes_title">洞</string>
     <string name="whitelist_title">白名单应用</string>
     <string name="about_title">关于</string>
-    <string name="about_desc">版本、原理与常见问题</string>
 
-    <!-- 概览 -->
-    <string name="status_running">正在运行</string>
-    <string name="status_off">已关闭</string>
-    <string name="enable_module">启用模块</string>
-    <string name="overview_hole_count">%1$d 个</string>
+    <string name="overview_hole_count">共 %1$d 个 · 启用 %2$d 个</string>
+    <string name="settings_hole_count">%1$d 个</string>
     <string name="overview_empty">诗库为空</string>
     <string name="overview_not_set">未设置</string>
     <string name="overview_none">未选择</string>
     <string name="overview_app_count">%1$d 个</string>
     <string name="overview_getting_started">三步开始使用</string>
-    <string name="step_enable_title">打开上面的开关</string>
-    <string name="step_enable_desc">打开后诗句才会出现在状态栏</string>
-    <string name="step_library_title">确认古诗库</string>
-    <string name="step_library_desc">已内置 6 首，可以增删改</string>
-    <string name="step_holes_title">按需设置洞</string>
-    <string name="step_holes_desc">刘海或挖孔屏可以框出那一段，不需要就留空</string>
+    <string name="step_enable_title">在 LSP 启用模块并勾选系统界面</string>
+    <string name="step_enable_desc">在 LSPosed 中启用本模块，并将「系统界面」加入作用域。</string>
+    <string name="step_library_title">打开上面的开关</string>
+    <string name="step_library_desc">启用后，状态栏才会开始显示诗句。</string>
+    <string name="step_holes_title">授予 root 权限并重启系统界面</string>
+    <string name="step_holes_desc">重启后模块才能在系统界面中生效。</string>
     <string name="overview_scope_hint">本模块只对「系统界面」生效，改完可能需要重启系统界面。</string>
 
-    <!-- 设置分组 -->
-    <string name="section_playback">播放</string>
-    <string name="section_display">显示内容</string>
-    <string name="section_holes">洞与挖孔</string>
-    <string name="section_pause">暂停条件</string>
-    <string name="section_maintenance">维护</string>
+    <string name="settings_section_appearance">外观</string>
+    <string name="settings_section_playback">播放</string>
+    <string name="settings_section_display">显示</string>
+    <string name="settings_section_pause">暂停与白名单</string>
 
     <string name="speed_label">滚动速度</string>
     <string name="speed_desc">数值越大滚得越快</string>
@@ -48,9 +40,7 @@
     <string name="order_sequential">按列表顺序</string>
     <string name="order_random">随机</string>
     <string name="show_author">显示作者</string>
-    <string name="show_author_desc">关掉后作者不显示，也不占位置</string>
     <string name="show_source">显示出处</string>
-    <string name="show_source_desc">关掉后出处不显示，也不占位置</string>
     <string name="bob_enabled">上下浮动</string>
     <string name="bob_desc">每首诗上下错开一点点，避免每首都卡在同一高度</string>
     <string name="holes_desc">诗句在状态栏上「消失」或「穿越」的那一段</string>
@@ -61,16 +51,20 @@
     <string name="whitelist_entry_desc">这些应用在前台时暂停滚动</string>
     <string name="restart_systemui">重启系统界面</string>
     <string name="restart_systemui_desc">装好或更新模块后要重启一次才会生效。需要 root 权限。</string>
-    <string name="restart_failed">重启失败：没有拿到 root 权限</string>
+    <string name="restart_root_unavailable">root/su 不可用；请在 Magisk、KernelSU 或 APatch 中确认 root 已启用后重试。</string>
+    <string name="restart_root_denied">root 授权被拒绝；请在 Root 管理器中允许「状态栏古诗」获取 root，再重试。</string>
+    <string name="restart_failed">重启命令执行失败；请检查 Root 管理器授权后重试，仍失败可手动重启设备。</string>
     <string name="footer_offline">所有设置只存在本机，模块不联网。</string>
 
-    <!-- 古诗库 -->
     <string name="add_poem">添加诗句</string>
     <string name="poem_add_title">添加诗句</string>
     <string name="poem_edit_title">编辑诗句</string>
     <string name="library_summary">共 %1$d 首 · 启用 %2$d 首</string>
-    <string name="library_swipe_hint">左滑删除 · 长按拖动排序</string>
     <string name="poem_import">导入</string>
+    <string name="poem_batch_edit">批量编辑</string>
+    <string name="batch_saved">已保存 %1$d 首</string>
+    <string name="batch_edit_title">批量编辑</string>
+    <string name="batch_edit_desc">下面是整张诗库的文本形式。直接改，确认后整体替换 —— 删掉的行会真的消失。</string>
     <string name="poem_export">导出</string>
     <string name="poem_copy">复制</string>
     <string name="poem_copied">已复制到剪贴板</string>
@@ -83,14 +77,12 @@
     <string name="poem_import_hint">长风破浪会有时，直挂云帆济沧海。|李白|行路难</string>
     <string name="poem_import_from_file">从文件导入</string>
     <string name="poem_import_read_failed">这个文件读不出来，换一个试试</string>
-    <string name="poem_import_confirm">导入</string>
     <string name="poem_import_parsed">已识别 %1$d 首</string>
     <string name="poem_export_desc">一行一首，格式是「诗句|作者|出处」。可以复制走，也可以存成文件，之后还能导回来。</string>
     <string name="import_result">导入完成：新增 %1$d 首，跳过 %2$d 首重复</string>
     <string name="delete">删除</string>
     <string name="delete_confirm">确认删除？</string>
     <string name="deleted_one">已删除</string>
-    <string name="undo">撤销</string>
     <string name="save">保存</string>
     <string name="cancel">取消</string>
     <string name="poem_text">诗句</string>
@@ -104,78 +96,130 @@
     <string name="empty_library_title">诗库是空的</string>
     <string name="empty_library_hint">至少加一首诗才会开始播放。删掉的内置诗不会在升级后自动回来。</string>
 
-    <!-- 洞 -->
     <string name="hole_preview_text">长风破浪会有时，直挂云帆济沧海</string>
     <string name="hole_preview_tunnel_hint">隧道：位置和速度都不变，洞里的字被挡住看不见</string>
     <string name="hole_preview_wormhole_hint">虫洞：字走到洞口就出现在另一边，一个字都不丢</string>
     <string name="hole_mode_title">穿越方式</string>
     <string name="hole_mode_wormhole">虫洞</string>
     <string name="hole_mode_tunnel">隧道</string>
-    <string name="hole_mode_wormhole_desc">像传送门：字到洞口右侧，立刻出现在洞口左侧，中间那段不画。整句因此会提前滚完。</string>
-    <string name="hole_mode_tunnel_desc">像火车进隧道：诗句的位置和速度完全不变，只是落在洞里的那一段被挡住。</string>
     <string name="hole_add">添加洞</string>
     <string name="hole_left">左边界</string>
     <string name="hole_right">右边界</string>
-    <string name="hole_summary">%1$d – %2$d px · 宽 %3$d px</string>
+    <string name="hole_summary">%1$d – %2$d px</string>
     <string name="hole_legend_hint">洞只影响诗句，不会挡住状态栏上的时钟和图标。</string>
     <string name="hole_samples_title">两种穿越方式</string>
-    <string name="hole_delete_confirm">删除这个洞？</string>
-    <string name="hole_delete_confirm_desc">%1$d – %2$d px（宽 %3$d px）。删掉后诗句会重新盖过这一段。</string>
     <string name="hole_edit_title">编辑洞</string>
     <string name="hole_color_hint">颜色和状态栏上那个框一致</string>
     <string name="hole_invalid_range">右边界必须比左边界大</string>
+    <string name="hole_both_required">左右边界都要填</string>
     <string name="hole_overlap">这一段和「洞 %1$d」（%2$d – %3$d px）重叠了，洞之间不能重叠</string>
 
-    <!-- 主页：LSPosed 连接自检 -->
-    <string name="lsp_connected">模块已生效</string>
-    <string name="lsp_connected_desc">系统界面 %1$d 秒前刚来读过配置，说明模块正在工作。</string>
-    <string name="lsp_not_connected">模块没有生效</string>
-    <string name="lsp_not_connected_desc">系统界面一次都没来读过配置，说明 LSPosed 还没把模块装进去。按顺序检查：</string>
-    <string name="lsp_step_enable">LSPosed → 模块 → 勾选「状态栏古诗」，然后重启手机或重启系统界面</string>
-    <string name="lsp_step_scope">作用域已经固定为「系统界面」，LSPosed 里那一栏是只读的，不用手动勾</string>
-    <string name="lsp_step_restart">装完或改完作用域后，必须重启系统界面（设置 → 维护）才会跑新代码</string>
-
-    <!-- 主页：配置速览 -->
     <string name="summary_title">当前配置</string>
-    <string name="summary_speed">滚动速度</string>
+    <string name="summary_poems">古诗</string>
     <string name="summary_speed_value">%1$d px/s</string>
-    <string name="summary_clock">原生时间停留</string>
     <string name="summary_clock_zero">不停留</string>
     <string name="summary_seconds_value">%1$d 秒</string>
-    <string name="summary_order">播放顺序</string>
-    <string name="summary_poems">古诗库</string>
-    <string name="summary_poems_value">启用 %1$d / 共 %2$d 首</string>
-    <string name="summary_holes">洞</string>
     <string name="hole_screen_width">屏幕宽 %1$d px，坐标从屏幕左边缘算起。</string>
     <string name="hole_max_reached">最多只能设 %1$d 个洞</string>
     <string name="hole_no_room">状态栏上已经放不下新的洞了，先删一个或改小一点</string>
     <string name="holes_empty_title">还没有设置洞</string>
     <string name="holes_empty_desc">状态栏有刘海或挖孔的话，可以在这里框出那一段，让诗句避开它。没有就留空。</string>
 
-    <!-- 白名单 -->
     <string name="whitelist_search">搜索应用</string>
     <string name="whitelist_empty_short">还没选应用，不会因为应用而暂停</string>
     <string name="whitelist_selected_count">已选 %1$d 个应用</string>
-    <string name="whitelist_clear">清空</string>
     <string name="whitelist_no_match">没有找到匹配的应用</string>
+    <string name="whitelist_loading">正在读取已安装应用…</string>
+    <string name="whitelist_no_apps">这台设备上没有查到可启动的应用。系统限制了应用列表访问时也会这样。</string>
 
-    <!-- 关于 -->
     <string name="version_label">版本 %1$s</string>
-    <string name="about_usage">使用说明</string>
-    <string name="about_scope_title">只对系统界面生效</string>
-    <string name="about_scope_body">模块通过 LSPosed 注入「系统界面」（com.android.systemui）。作用域已固定为系统界面，不需要也不应该勾选其它应用。</string>
-    <string name="about_restart_title">改完没反应？</string>
-    <string name="about_restart_body">装好或更新模块后，系统界面还在跑旧代码。到「设置 → 维护」点一次「重启系统界面」，或者直接重启手机。</string>
-    <string name="about_holes_title">洞是什么</string>
-    <string name="about_holes_body">洞是状态栏上的一段横向区间。隧道会把落在这段的诗句挡住；虫洞会让字直接跳到另一侧。两者都只作用于诗句，不影响时钟和图标。</string>
-    <string name="about_privacy">隐私</string>
     <string name="about_offline_title">完全离线</string>
     <string name="about_offline_body">模块不申请联网权限，诗库和设置全部存在本机。白名单需要读取已安装应用列表，只用来判断当前是哪个应用在前台。</string>
     <string name="about_footer">状态栏古诗 · 本地运行 · 无网络请求</string>
 
-    <!-- 单位与杂项 -->
+    <string name="about_repo_title">源码仓库</string>
     <string name="seconds">秒</string>
     <string name="px_per_second">px/s</string>
     <string name="move_up">上移</string>
     <string name="move_down">下移</string>
+    <string name="confirm">确定</string>
+    <string name="hole_delete_confirm_desc">删除后这个洞的位置要重新量。确定删除吗？</string>
+    <string name="status_ok">古诗已显示</string>
+    <string name="status_section_switch">开关</string>
+    <string name="enable_module_title">显示古诗</string>
+    <string name="enable_module_summary">关闭后状态栏恢复原生，配置保留。</string>
+    <string name="status_ok_desc">正在播放 %1$d 首诗</string>
+    <string name="status_not_connected">模块还没生效</string>
+    <string name="status_not_connected_desc">系统界面没读到配置，按下面的步骤检查</string>
+    <string name="status_off">已关闭</string>
+    <string name="status_off_desc">点一下卡片，古诗就会出现在状态栏</string>
+    <string name="status_no_poems">没有可播的诗</string>
+    <string name="status_no_poems_desc">去诗库添加几首，或者把停用的诗打开</string>
+    <string name="status_title">模块状态</string>
+    <string name="status_section_check">自检</string>
+    <string name="status_framework">LSPosed 框架</string>
+    <string name="status_scope">作用域</string>
+    <string name="status_module">模块开关</string>
+    <string name="status_last_read">系统界面读取</string>
+    <string name="status_connected">已连接</string>
+    <string name="status_disconnected">未连接</string>
+    <string name="status_enabled">已启用</string>
+    <string name="status_disabled">已停用</string>
+    <string name="status_scope_value">系统界面</string>
+    <string name="status_never">从未</string>
+    <string name="status_seconds_ago">%1$d 秒前</string>
+    <string name="status_section_about">设备信息</string>
+    <string name="status_system">系统</string>
+    <string name="status_screen_width">屏幕宽度</string>
+    <string name="status_screen_value">%1$d px（%2$s dp）</string>
+    <string name="status_version">版本</string>
+    <string name="status_device">设备</string>
+    <string name="status_android">Android</string>
+    <string name="status_hint">三项都对但还是没生效？重启一次系统界面试试。</string>
+
+    <string name="appearance_title">外观</string>
+    <string name="appearance_section_style">界面</string>
+    <string name="appearance_section_color">配色</string>
+    <string name="appearance_section_theme">深浅色</string>
+    <string name="appearance_section_effect">效果</string>
+    <string name="settings_theme_mode_system">跟随系统</string>
+    <string name="settings_theme_mode_light">浅色</string>
+    <string name="settings_theme_mode_dark">深色</string>
+    <string name="settings_theme_mode_amoled">纯黑</string>
+    <string name="settings_monet">莫奈取色</string>
+    <string name="settings_monet_summary">从壁纸取色，跟随系统配色。</string>
+    <string name="settings_key_color">主色调</string>
+    <string name="settings_key_color_default">默认</string>
+    <string name="settings_color_style">配色风格</string>
+    <string name="settings_color_spec">色彩规范</string>
+    <string name="settings_enable_blur">背景模糊</string>
+    <string name="settings_enable_blur_summary">顶栏和底栏显示半透明模糊背景。</string>
+    <string name="settings_floating_bottom_bar">浮动底栏</string>
+    <string name="settings_floating_bottom_bar_summary">底栏变成浮在内容上的胶囊。</string>
+    <string name="settings_enable_glass">液态玻璃</string>
+    <string name="settings_enable_glass_summary">胶囊带边缘折射、高光和内阴影。</string>
+    <string name="settings_ui_mode">界面风格</string>
+    <string name="settings_ui_mode_summary">选择 Material 或 Miuix 观感。</string>
+    <string name="settings_page_scale">页面缩放</string>
+    <string name="settings_enable_predictive_back">预测性返回</string>
+    <string name="settings_enable_predictive_back_summary">返回时页面跟随手指移动。</string>
+    <string name="settings_enable_swipe_dismiss">侧滑返回</string>
+    <string name="settings_enable_swipe_dismiss_summary">从屏幕边缘滑动返回上一页。</string>
+
+    <string name="color_red">红</string>
+    <string name="color_pink">粉</string>
+    <string name="color_purple">紫</string>
+    <string name="color_deep_purple">深紫</string>
+    <string name="color_indigo">靛蓝</string>
+    <string name="color_blue">蓝</string>
+    <string name="color_cyan">青</string>
+    <string name="color_teal">蓝绿</string>
+    <string name="color_green">绿</string>
+    <string name="color_yellow">黄</string>
+    <string name="color_amber">琥珀</string>
+    <string name="color_orange">橙</string>
+    <string name="color_brown">棕</string>
+    <string name="color_blue_grey">蓝灰</string>
+    <string name="color_sakura">樱粉</string>
+
 </resources>

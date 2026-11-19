@@ -6,13 +6,10 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-/** 虫洞（传送门）/ 隧道的几何验证：不丢字、不重叠、隧道不位移。 */
 public class HoleGeometryTest {
-
     private static final float[] S = new float[12];
     private static final float[] T = new float[12];
     private static final float[] W = new float[12];
-
     private static float span(int n) {
         float lo = Float.MAX_VALUE;
         float hi = -Float.MAX_VALUE;
@@ -36,6 +33,7 @@ public class HoleGeometryTest {
 
     @Test
     public void nothingMovesBeforeThePortalIsReached() {
+
         List<HoleRects.Hole> holes = HoleRects.parse("700:800:wormhole");
         int n = HoleRects.wormholeSegments(holes, 1200f, 1500f, 0, S, T, W, 12);
         assertEquals(1, n);
@@ -46,6 +44,7 @@ public class HoleGeometryTest {
 
             @Test
     public void segmentsNeverOverlapAndNeverLoseText() {
+
         List<HoleRects.Hole> holes = HoleRects.parse(
                 "400:500:wormhole,670:770:wormhole,1100:1200:wormhole");
         int frames = 0;
@@ -71,13 +70,15 @@ public class HoleGeometryTest {
 
     @Test
     public void poemLeavesTheScreenEarlierThanWithoutHoles() {
+
         List<HoleRects.Hole> holes = HoleRects.parse("700:800:wormhole");
+
         int n = HoleRects.wormholeSegments(holes, 650f, 1250f, 0, S, T, W, 12);
         float leftmost = Float.MAX_VALUE;
         for (int i = 0; i < n; i++) {
             leftmost = Math.min(leftmost, S[i]);
         }
-        // 没有洞时左端是 650；有洞时被推到一个洞宽之外。
+
         assertEquals("左端应比无洞时早一个洞宽离屏", 550f, leftmost, 0.01f);
     }
 
@@ -93,7 +94,7 @@ public class HoleGeometryTest {
 
     @Test
     public void holesNeverAffectTheStatusBar() throws java.io.IOException {
-        // 洞只作用于古诗层，状态栏遮挡只由可见分段决定。
+
         java.io.File f = new java.io.File(
                 "src/main/java/io/github/rude56/poemstatus/PoemRuntime.java");
         assertTrue("必须能读到源码: " + f, f.isFile());
@@ -104,9 +105,6 @@ public class HoleGeometryTest {
                 rt.contains("HolePuncher.updatePoemSegments(configHoles"));
     }
 
-    // ---------------------------------------------------------------- 多虫洞
-
-    /** 第二个虫洞的触发点不能被第一个洞的宽度带偏。 */
     @Test
     public void secondWormholeIsNotShiftedByTheFirst() {
         List<HoleRects.Hole> holes = HoleRects.parse("400:500:wormhole,900:1000:wormhole");
@@ -114,7 +112,6 @@ public class HoleGeometryTest {
         int n = HoleRects.wormholeSegments(holes, 1800f, 3200f, 0, S, T, W, 12);
         assertEquals("未到任何门不得位移", 1800f, S[0], 0.01f);
 
-        // 已越过洞 1 的门（600）、跨过洞 2：切成两段，左段左移一个洞宽。
         n = HoleRects.wormholeSegments(holes, 700f, 1700f, 0, S, T, W, 12);
         assertEquals("跨过洞口必须切成两段", 2, n);
         assertEquals("左段左移一个洞宽", 600f, S[0], 0.01f);
@@ -123,17 +120,15 @@ public class HoleGeometryTest {
         assertEquals("右段不位移", 1000f, S[1], 0.01f);
         assertEquals(1000f, T[1], 0.01f);
         assertEquals(700f, W[1], 0.01f);
-
         n = HoleRects.wormholeSegments(holes, 1100f, 2100f, 0, S, T, W, 12);
         assertEquals("两个洞都穿过 → 不位移", 1100f, S[0], 0.01f);
     }
-
-    /** 整句被撑长两个洞宽，且分段不重叠、不丢字。 */
     @Test
     public void twoWormholesStretchByBothWidths() {
         List<HoleRects.Hole> holes = HoleRects.parse("400:500:wormhole,900:1000:wormhole");
         int n = HoleRects.wormholeSegments(holes, 300f, 1300f, 0, S, T, W, 12);
         assertEquals("字一个都不能丢", 1000f, totalWidth(n), 0.01f);
+
         assertEquals("必须被撑开两个洞宽", 1200f, span(n), 0.01f);
         float prevEnd = Float.NaN;
         for (int i = 0; i < n; i++) {
@@ -147,19 +142,17 @@ public class HoleGeometryTest {
         }
     }
 
-    /** 逐帧验证每段位移等于「已穿过的洞宽之和」。 */
     @Test
     public void secondPortalFiresAtTheRightMomentAcrossAllFrames() {
         List<HoleRects.Hole> holes = HoleRects.parse("400:500:wormhole,900:1000:wormhole");
         final float textW = 1400f;
-        // 门坐标：洞 2 = 1000；洞 1 = 500 + 100 = 600。
+
         final float gate2 = 1000f;
         final float gate1 = 600f;
         for (float left = 1800f; left >= -400f; left -= 1f) {
             int n = HoleRects.wormholeSegments(holes, left, left + textW, 0, S, T, W, 12);
-            // 不变量 1：总宽不变（不丢字、不重叠）
+
             assertEquals("left=" + left + " 丢字", textW, totalWidth(n), 0.01f);
-            // 不变量 2：每段的屏幕位置 = 原始位置 − 已穿过的洞宽之和
             for (int i = 0; i < n; i++) {
                 if (W[i] <= 0f) {
                     continue;
@@ -174,7 +167,7 @@ public class HoleGeometryTest {
                 assertEquals("left=" + left + " 第" + i + "段位移错误",
                         T[i] - shift, S[i], 0.01f);
             }
-            // 不变量 3：分段严格递增、不重叠
+
             float prevEnd = Float.NaN;
             for (int i = 0; i < n; i++) {
                 if (W[i] <= 0f) {

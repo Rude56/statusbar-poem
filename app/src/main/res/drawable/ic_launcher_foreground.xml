@@ -4,7 +4,6 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 极简：一条滚动的诗句横线 + 一个时钟小方块 -->
     <path
         android:fillColor="#F4E7C5"
         android:pathData="M26,50 L74,50 L74,54 L26,54 Z" />

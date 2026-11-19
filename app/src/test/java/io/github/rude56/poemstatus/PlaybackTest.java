@@ -11,7 +11,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-/** 播放顺序：顺序从第一首开始；随机始终返回有效对象且不连续重复。 */
 public class PlaybackTest {
 
     private static List<PoemItem> sample(int n) {

@@ -1,10 +1,3 @@
-# 构建 debug APK
-#
-# 前置条件：
-#   - JDK 21（JAVA_HOME 指向它）
-#   - Android SDK 37（ANDROID_HOME 指向它，或在 local.properties 里写 sdk.dir）
-#
-# 用法：powershell -ExecutionPolicy Bypass -File scripts/build.ps1
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
@@ -18,7 +11,6 @@ if (-not (Test-Path $gradlew)) { throw "缺少 gradlew.bat" }
 
 Push-Location $root
 try {
-    # 源码以 UTF-8 无 BOM 保存（Windows 的 Set-Content 会加 BOM，javac 会报「非法字符」）
     & (Join-Path $PSScriptRoot 'strip-bom.ps1')
     & $gradlew :app:assembleDebug --no-daemon
     if ($LASTEXITCODE -ne 0) { throw "gradle assembleDebug failed" }

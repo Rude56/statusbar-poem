@@ -14,7 +14,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-/** 诗库：默认 6 首、显式空库保持为空、增删改排序、重复检测、升级不复活。 */
 public class PoemLibraryTest {
 
     @Test
@@ -47,7 +46,6 @@ public class PoemLibraryTest {
         List<PoemItem> list = new ArrayList<>();
         list.add(new PoemItem("", "自定义诗句", "", "", true));
         String json = PoemItem.listToJson(list);
-        // seeded=true：不得把内置诗合并回来
         List<PoemItem> reloaded = PoemLibrary.load(true, json);
         assertEquals(1, reloaded.size());
         assertEquals("自定义诗句", reloaded.get(0).text);
@@ -117,9 +115,6 @@ public class PoemLibraryTest {
         assertEquals(5, PoemLibrary.enabledOnly(list).size());
     }
 
-    // ---------------------------------------------------------------- 搜索态排序
-
-    /** 造一首诗，文本即标识，便于断言顺序。 */
     private static PoemItem p(String text) {
         return new PoemItem("", text, "", "", true);
     }
@@ -140,7 +135,6 @@ public class PoemLibraryTest {
         return out;
     }
 
-    /** 搜索过滤后拖动，只能和看得见的诗换位。 */
     @Test
     public void moveAmongVisibleSkipsFilteredOutPoems() {
         PoemItem a = p("甲");
@@ -152,16 +146,12 @@ public class PoemLibraryTest {
 
         Set<String> visible = idsOf(a, b, c);
 
-        // 甲下移一格：和下一首可见的乙交换。
         assertTrue(PoemLibrary.moveAmongVisible(list, a.id, visible, 1));
         assertEquals(Arrays.asList("乙", "甲", "丙", "丁", "戊"), texts(list));
 
-        // 再下移一格：跳过两首隐藏诗，和戊交换。
         assertTrue(PoemLibrary.moveAmongVisible(list, a.id, visible, 1));
         assertEquals(Arrays.asList("乙", "戊", "丙", "丁", "甲"), texts(list));
     }
-
-    /** 被过滤掉的诗在整次移动里不得改动。 */
     @Test
     public void hiddenPoemsKeepTheirRelativeOrder() {
         PoemItem a = p("甲");
@@ -173,14 +163,13 @@ public class PoemLibraryTest {
         Set<String> visible = idsOf(a, b);
 
         assertTrue(PoemLibrary.moveAmongVisible(list, a.id, visible, 1));
-        // 隐藏的三首必须保持原下标不变。
+
         assertEquals(Arrays.asList("戊", "乙", "丙", "丁", "甲"), texts(list));
         assertEquals(h1.id, list.get(1).id);
         assertEquals(h2.id, list.get(2).id);
         assertEquals(h3.id, list.get(3).id);
     }
 
-    /** 到头了就返回 false，列表不得改动。 */
     @Test
     public void moveStopsAtTheEndsWithoutTouchingTheList() {
         PoemItem a = p("甲");
@@ -195,7 +184,6 @@ public class PoemLibraryTest {
         assertEquals(Arrays.asList("甲", "乙"), texts(list));
     }
 
-    /** 中间只剩隐藏诗时也不能越界。 */
     @Test
     public void moveStopsWhenOnlyHiddenPoemsRemainInThatDirection() {
         PoemItem a = p("甲");
@@ -207,7 +195,6 @@ public class PoemLibraryTest {
         assertEquals(Arrays.asList("甲", "乙"), texts(list));
     }
 
-    /** 全可见时退化为普通的相邻交换。 */
     @Test
     public void moveWithNoFilterIsPlainAdjacentSwap() {
         PoemItem a = p("甲");
@@ -220,7 +207,6 @@ public class PoemLibraryTest {
         assertEquals(Arrays.asList("甲", "丙", "乙"), texts(list));
     }
 
-    /** 反复移动不得丢诗或重复。 */
     @Test
     public void repeatedMovesNeverLoseOrDuplicatePoems() {
         List<PoemItem> list = new ArrayList<>(PoemLibrary.defaults());
@@ -228,7 +214,6 @@ public class PoemLibraryTest {
         for (PoemItem item : list) {
             all.add(item.id);
         }
-        // 只让奇数下标的诗可见，模拟搜索命中一半。
         Set<String> visible = new HashSet<>();
         for (int i = 0; i < list.size(); i += 2) {
             visible.add(list.get(i).id);
@@ -246,7 +231,6 @@ public class PoemLibraryTest {
         }
     }
 
-    /** 参数异常一律返回 false，不抛异常、不改列表。 */
     @Test
     public void moveIsSafeForDegenerateInput() {
         List<PoemItem> list = new ArrayList<>(Arrays.asList(p("甲")));

@@ -9,11 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-/** 诗库纯文本（诗句|作者|出处）编解码测试。 */
 public class PoemTextCodecTest {
-
-    // ---------------------------------------------------------------- 解析
-
     @Test
     public void parsesThreeFields() {
         List<PoemItem> list = PoemTextCodec.decode(
@@ -66,6 +62,7 @@ public class PoemTextCodecTest {
 
     @Test
     public void stripsNestedBookMarksFromSource() {
+
         List<PoemItem> list = PoemTextCodec.decode("会当凌绝顶，一览众山小。|杜甫|《望岳》");
         assertEquals("望岳", list.get(0).source);
         List<PoemItem> again = PoemTextCodec.decode("会当凌绝顶，一览众山小。|杜甫|《《望岳》》");
@@ -88,8 +85,6 @@ public class PoemTextCodecTest {
         assertTrue(PoemTextCodec.decode("   \n\n  ").isEmpty());
     }
 
-    // ---------------------------------------------------------------- 导出
-
     @Test
     public void exportsOnePoemPerLine() {
         List<PoemItem> list = new ArrayList<>();
@@ -110,7 +105,7 @@ public class PoemTextCodecTest {
 
         List<PoemItem> withAuthor = new ArrayList<>();
         withAuthor.add(new PoemItem("", "有作者", "张三", "", true));
-        // 出处为空时不能留下多余的分隔符。
+
         assertEquals("有作者|张三\n", PoemTextCodec.encode(withAuthor));
     }
 
@@ -135,6 +130,7 @@ public class PoemTextCodecTest {
 
     @Test
     public void builtinLibraryRoundTrips() {
+
         List<PoemItem> builtin = PoemLibrary.defaults();
         List<PoemItem> restored = PoemTextCodec.decode(PoemTextCodec.encode(builtin));
         assertEquals(builtin.size(), restored.size());
@@ -145,13 +141,11 @@ public class PoemTextCodecTest {
         }
     }
 
-    // ---------------------------------------------------------------- 合并
-
     @Test
     public void mergeSkipsDuplicates() {
         List<PoemItem> target = new ArrayList<>(PoemLibrary.defaults());
         int before = target.size();
-        // 再导入一遍内置诗：全部应被跳过。
+
         int[] result = PoemTextCodec.merge(target, PoemTextCodec.decode(PoemTextCodec.encode(target)));
         assertEquals(before, target.size());
         assertEquals("重复的一个都不能加", 0, result[0]);

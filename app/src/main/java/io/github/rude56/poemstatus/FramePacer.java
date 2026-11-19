@@ -1,22 +1,12 @@
 package io.github.rude56.poemstatus;
 
-/** 帧节奏：按速度自适应回调间隔，低速时减少唤醒、高速时封顶 30fps。 */
 public final class FramePacer {
-
     public static final int TARGET_FPS = 30;
     public static final long TARGET_FRAME_NS = 1_000_000_000L / TARGET_FPS;
-    /** 位移小于该值（设备像素）就不绘制。 */
     public static final float MIN_DRAW_DELTA_PX = 1f;
-    /** 自适应间隔上限（100ms）：再慢也要偶尔醒一次，保证「暂停 / 布局变化 / 掉帧」能被及时反映。 */
     public static final long MAX_ADAPTIVE_INTERVAL_NS = 100_000_000L;
-
     private FramePacer() {
     }
-
-    /**
-     * 这一帧之后应该隔多久再要下一帧：走到 {@link #MIN_DRAW_DELTA_PX} 需要的时间与
-     * {@link #TARGET_FRAME_NS} 取较大者（不高于 30fps），再用 {@link #MAX_ADAPTIVE_INTERVAL_NS} 兜底。
-     */
     public static long intervalNsForSpeed(int speedPx) {
         if (speedPx <= 0) {
             return TARGET_FRAME_NS;

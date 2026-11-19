@@ -8,18 +8,13 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 一条诗句。不可变对象，App 与 SystemUI 共用；不保存像素宽度，
- * 宽度必须在 SystemUI 进程内按真实 Paint 测量后放进 LRU 缓存。
- */
 public final class PoemItem {
-
     public final String id;
     public final String text;
     public final String author;
     public final String source;
     public final boolean enabled;
-    /** 诗句本身的码点数（不含作者/出处），用于上限校验与诊断。 */
+
     public final int charCount;
 
     public PoemItem(String id, String text, String author, String source, boolean enabled) {
@@ -35,7 +30,6 @@ public final class PoemItem {
         return new PoemItem(id, text, author, source, value);
     }
 
-    /** 实际显示文本：作者/出处被关掉时不拼接，因此文字宽度、滚动时长、遮挡包围盒都基于真正的显示内容计算。 */
     public String displayText(boolean showAuthor, boolean showSource) {
         if (!showAuthor && !showSource) {
             return text;
@@ -60,6 +54,7 @@ public final class PoemItem {
             o.put("source", source);
             o.put("enabled", enabled);
         } catch (Throwable ignored) {
+
         }
         return o;
     }
@@ -94,7 +89,7 @@ public final class PoemItem {
                 }
             }
         } catch (Throwable ignored) {
-            // 损坏的 JSON 当作空库：宁可暂时不播放，也不能让 SystemUI 崩。
+
         }
         return out;
     }
@@ -110,11 +105,11 @@ public final class PoemItem {
                 }
             }
         } catch (Throwable ignored) {
+
         }
         return arr.toString();
     }
 
-    /** ID 由 文本 + 作者 + 出处 的稳定哈希生成，编辑内容即产生新 ID。 */
     public static String stableId(String text, String author, String source) {
         String raw = (text == null ? "" : text.trim()) + "\u0000"
                 + (author == null ? "" : author.trim()) + "\u0000"

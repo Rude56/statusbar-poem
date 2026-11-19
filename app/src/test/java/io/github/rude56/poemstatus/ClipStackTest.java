@@ -4,9 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-/** 画布裁剪栈：push/pop 必须严格后进先出。 */
 public class ClipStackTest {
-
     @Test
     public void pushPopIsStrictlyNested() {
         ClipStack s = new ClipStack();
@@ -36,7 +34,6 @@ public class ClipStackTest {
         assertEquals("外层保存点必须还在", 100, s.pop());
         assertEquals("栈必须干净", 0, s.depth());
     }
-
     @Test
     public void exceedingDepthIsRejectedWithoutCorruption() {
         ClipStack s = new ClipStack();
@@ -45,6 +42,7 @@ public class ClipStackTest {
         }
         assertFalse("超限必须拒绝", s.push(999));
         assertEquals("拒绝后深度不变", ClipStack.MAX_DEPTH, s.depth());
+
         for (int i = ClipStack.MAX_DEPTH - 1; i >= 0; i--) {
             assertEquals(i, s.pop());
         }
@@ -59,6 +57,7 @@ public class ClipStackTest {
         s.clear();
         assertEquals(0, s.depth());
         assertEquals(-1, s.pop());
+
         assertTrue(s.push(7));
         assertEquals(7, s.pop());
     }

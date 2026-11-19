@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-      Compose 应用只需要一个「无 ActionBar、透明系统栏」的宿主主题；
-      真正的配色由 Compose 里的 MaterialTheme（含动态取色）负责，
-      所以这里不写死任何颜色，避免与 Compose 主题打架。
-    -->
     <style name="Theme.PoemStatus" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
+
+        <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
