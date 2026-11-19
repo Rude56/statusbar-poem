@@ -183,6 +183,7 @@ private class BgEffectNode(
             val alphaValue = alpha()
             if (alphaValue > 0f) {
 
+                // isFullSize 时渐变铺满整页，否则只染下半屏（滚动列表用）。
                 val drawHeight = if (isFullSize) size.height else size.height * 0.5f
                 painter.updateResolution(size.width, size.height)
                 painter.updateBoundIfNeeded(drawHeight, size.height, size.width)

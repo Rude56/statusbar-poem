@@ -3,6 +3,7 @@ package io.github.rude56.poemstatus;
 import java.util.List;
 
 public final class PoemEngine {
+    /** IDLE/CLOCK/PAUSED 都不得有帧回调；只有 CRAWL 才需要 Choreographer。 */
     public enum State {IDLE, CRAWL, CLOCK, PAUSED}
     public interface Host {
         void startCrawl(PoemItem poem, String displayText, int speedPx);

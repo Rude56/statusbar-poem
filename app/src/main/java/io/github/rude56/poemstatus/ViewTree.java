@@ -28,6 +28,7 @@ final class ViewTree {
     private static View cachedWindow;
 
     private static View lookupContentRoot(View window) {
+        // 挖洞根必须是 Compose 画布的祖先，绑到 status_bar_contents 管不到图标。
         for (String id : new String[]{"status_bar_container",
                 "status_bar_launch_animation_container"}) {
             View v = findByResourceId(window, id);

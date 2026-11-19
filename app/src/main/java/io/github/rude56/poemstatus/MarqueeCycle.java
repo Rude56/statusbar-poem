@@ -1,7 +1,9 @@
 package io.github.rude56.poemstatus;
 
 public final class MarqueeCycle {
+    /** 循环衔接用：文字尾巴补 10 个空格，滚完后再从头进入不会撞在一起。 */
     public static final int GAP_SPACES = 10;
+    /** 走完一轮后停 1 秒再从头开始。 */
     public static final long PAUSE_MILLIS = 1000L;
 
     private MarqueeCycle() { }

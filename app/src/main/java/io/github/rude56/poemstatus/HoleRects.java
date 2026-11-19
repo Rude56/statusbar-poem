@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class HoleRects {
+    /** 虫洞 = 传送门：字到洞口右沿立刻出现在左沿，洞口里不画。 */
     public static final String MODE_WORMHOLE = "wormhole";
+    /** 隧道 = 只遮古诗、不遮状态栏图标。 */
     public static final String MODE_TUNNEL = "tunnel";
     public static final int MAX_HOLES = 8;
     private HoleRects() {

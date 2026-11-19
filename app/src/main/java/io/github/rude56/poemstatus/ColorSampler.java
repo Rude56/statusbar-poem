@@ -4,7 +4,9 @@ import android.view.View;
 import android.widget.TextView;
 
 final class ColorSampler {
+    /** 只有 Hook 完全拿不到 tint 时才降级到这个兜底轮询间隔。 */
     private static final long SAMPLE_INTERVAL_MS = 2000L;
+    /** 系统图标色切换是带动画的，回调必须合流，否则等于每帧取一次色。 */
     private static final long COALESCE_MS = 250L;
     private static final long DIAG_LOG_MS = 300_000L;
     private final android.os.Handler handler =

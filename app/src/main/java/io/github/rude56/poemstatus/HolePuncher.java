@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class HolePuncher {
+    /** 挖洞会让整条状态栏重绘，必须节流，否则等于每帧全画一遍。 */
     private static final long INVALIDATE_INTERVAL_MS = 30L;
     private static final int HOLE_PAD_PX = 2;
     static boolean installed;
