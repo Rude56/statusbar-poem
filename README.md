@@ -1,6 +1,6 @@
 # 状态栏古诗
 
-一个 LSPosed 模块：在系统状态栏里滚动播放古诗。
+一个 [LSPosed 模块](https://modules.lsposed.org/module/io.github.rude56.poemstatus)：在系统状态栏里滚动播放古诗。
 
 诗句从屏幕右侧滚入、向左滚过状态栏，只遮住诗句正下方那一小段；
 播完恢复原生状态栏，停留片刻后播放下一首。
