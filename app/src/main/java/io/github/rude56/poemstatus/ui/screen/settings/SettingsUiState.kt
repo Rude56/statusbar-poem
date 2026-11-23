@@ -29,6 +29,7 @@ data class SettingsUiState(
     val bobEnabled: Boolean = false,
     val landscapePause: Boolean = true,
     val lockscreenPause: Boolean = true,
+    val debugLog: Boolean = false,
 
     val holeCount: Int = 0,
     val whitelistCount: Int = 0,
@@ -65,4 +66,6 @@ data class SettingsScreenActions(
     val onSetBob: (Boolean) -> Unit,
     val onSetLandscapePause: (Boolean) -> Unit,
     val onSetLockscreenPause: (Boolean) -> Unit,
+    val onSetDebugLog: (Boolean) -> Unit,
+    val onExportLog: () -> Unit,
 )

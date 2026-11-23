@@ -9,6 +9,7 @@ import io.github.libxposed.api.XposedModule;
 
 public final class ModuleMain extends XposedModule {
     private static boolean installed;
+
     @Override
     public void onModuleLoaded(@NonNull ModuleLoadedParam param) {
         Log.i("INJECTED process=" + param.getProcessName()
@@ -17,9 +18,12 @@ public final class ModuleMain extends XposedModule {
                 + " api=" + getApiVersion()
                 + " framework=" + getFrameworkName() + " " + getFrameworkVersion());
     }
+
     @Override
     public void onPackageReady(@NonNull PackageReadyParam param) {
-        if (!FeatureAudit.SCOPE_PACKAGE.equals(param.getPackageName())) {
+        String pkg = param.getPackageName();
+        Log.diag("PKG READY pkg=" + pkg + " pid=" + Process.myPid());
+        if (!FeatureAudit.SCOPE_PACKAGE.equals(pkg)) {
             return;
         }
         if (installed) {

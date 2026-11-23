@@ -1,5 +1,3 @@
-# 现代 libxposed 模块声明。staticScope=true 表示静态作用域：
-# 模块只作用于 scope.list 列出的包，用户无法在 LSPosed 中勾选到其他应用。
 minApiVersion=101
 targetApiVersion=102
 staticScope=true

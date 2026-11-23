@@ -45,6 +45,7 @@ import io.github.rude56.poemstatus.R
 import io.github.rude56.poemstatus.ui.component.material.ExpressiveScaffold
 import io.github.rude56.poemstatus.ui.component.material.SegmentedColumn
 import io.github.rude56.poemstatus.ui.component.material.SegmentedListItem
+import io.github.rude56.poemstatus.ui.component.material.SegmentedSwitchItem
 import io.github.rude56.poemstatus.ui.component.material.TopBarBackButton
 import io.github.rude56.poemstatus.ui.component.material.expressiveTopAppBarColors
 
@@ -116,6 +117,33 @@ fun AboutMaterial(
                                 },
                                 headlineContent = { Text(stringResource(R.string.about_offline_title)) },
                                 supportingContent = { Text(stringResource(R.string.about_offline_body)) },
+                            )
+                        },
+                    ),
+                )
+            }
+
+            // 调试日志放在关于页：定位问题时才需要，不该占用设置页的主流程。
+            item {
+                SegmentedColumn(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    content = listOf(
+                        {
+                            SegmentedSwitchItem(
+                                title = stringResource(R.string.debug_log),
+                                summary = stringResource(R.string.debug_log_desc),
+                                checked = state.debugLog,
+                                onCheckedChange = actions.onSetDebugLog,
+                            )
+                        },
+                        {
+                            SegmentedListItem(
+                                onClick = actions.onExportLog,
+                                leadingContent = {
+                                    Icon(Icons.Filled.Info, contentDescription = null)
+                                },
+                                headlineContent = { Text(stringResource(R.string.export_log)) },
+                                supportingContent = { Text(stringResource(R.string.export_log_desc)) },
                             )
                         },
                     ),

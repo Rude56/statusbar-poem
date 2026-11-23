@@ -22,6 +22,10 @@ import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -29,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.rude56.poemstatus.R
+import io.github.rude56.poemstatus.ui.component.miuix.NumberInputDialog
 import io.github.rude56.poemstatus.ui.theme.LocalEnableBlur
 import io.github.rude56.poemstatus.ui.util.BlurredBar
 import io.github.rude56.poemstatus.ui.util.rememberBlurBackdrop
@@ -125,12 +130,17 @@ fun SettingsMiuix(
                             .padding(top = 4.dp)
                             .fillMaxWidth(),
                     ) {
+                        // 滑条负责连续调节，点标题弹出输入框做精确输入 ——
+                        // miuix 没有可输入数字的组件，只靠滑条没法输入精确值。
+                        var showSpeedInput by remember { mutableStateOf(false) }
                         SliderPreference(
                             title = stringResource(R.string.speed_label),
                             summary = stringResource(R.string.speed_desc),
                             value = state.speedPx.toFloat(),
                             onValueChange = { actions.onSetSpeed(it.toInt()) },
-                            valueRange = 20f..600f,
+                            onClick = { showSpeedInput = true },
+                            holdDownState = showSpeedInput,
+                            valueRange = 40f..480f,
                             valueText = stringResource(R.string.summary_speed_value, state.speedPx),
                             startAction = {
                                 Icon(
@@ -141,11 +151,23 @@ fun SettingsMiuix(
                                 )
                             },
                         )
+                        NumberInputDialog(
+                            show = showSpeedInput,
+                            title = stringResource(R.string.speed_label),
+                            value = state.speedPx,
+                            range = 40..480,
+                            unit = stringResource(R.string.px_per_second),
+                            onDismissRequest = { showSpeedInput = false },
+                            onConfirm = actions.onSetSpeed,
+                        )
+                        var showClockInput by remember { mutableStateOf(false) }
                         SliderPreference(
                             title = stringResource(R.string.clock_label),
                             summary = stringResource(R.string.clock_desc),
                             value = state.clockSeconds.toFloat(),
                             onValueChange = { actions.onSetClock(it.toInt()) },
+                            onClick = { showClockInput = true },
+                            holdDownState = showClockInput,
                             valueRange = 0f..600f,
                             valueText = if (state.clockSeconds == 0) {
                                 stringResource(R.string.summary_clock_zero)
@@ -160,6 +182,15 @@ fun SettingsMiuix(
                                     tint = colorScheme.onBackground,
                                 )
                             },
+                        )
+                        NumberInputDialog(
+                            show = showClockInput,
+                            title = stringResource(R.string.clock_label),
+                            value = state.clockSeconds,
+                            range = 0..600,
+                            unit = stringResource(R.string.seconds),
+                            onDismissRequest = { showClockInput = false },
+                            onConfirm = actions.onSetClock,
                         )
                     }
 

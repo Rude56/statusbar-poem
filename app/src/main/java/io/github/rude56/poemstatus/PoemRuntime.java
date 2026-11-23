@@ -33,6 +33,8 @@ final class PoemRuntime {
 
     static final float MIN_DRAW_DELTA_PX = FramePacer.MIN_DRAW_DELTA_PX;
 
+    static final float FORCE_ELEVATION_PX = 50f;
+
     private final java.util.Random bobRandom = new java.util.Random();
 
     private final Map<String, Float> measureCache =
@@ -44,7 +46,13 @@ final class PoemRuntime {
             };
 
     private View statusContainer;
+    private View occludeHost;
+    private boolean forceWindowMode;
     private OverlayView overlay;
+
+    View overlayView() {
+        return overlay;
+    }
     private WindowManager windowManager;
 
     private List<HoleRects.Hole> configHoles = new ArrayList<>(2);
@@ -60,9 +68,34 @@ final class PoemRuntime {
     private long frameCount;
     private long skippedFrames;
     private long totalFrameCostNs;
+    void setOccludeHost(View v) {
+        occludeHost = v;
+    }
+
+    /**
+     * 记录「锁屏需要窗口模式」这件事，但<b>不</b>拆挂载。
+     *
+     * <p>挂载方式只由 attachOverlayView 决定（优先 addView 进容器，失败才退窗口）。
+     * 这里若 removeOverlay，解锁动画期间 keyguard 状态会来回跳几次，
+     * 每跳一次就摘掉再加回诗句层 —— 那正是「解锁一闪一闪」。
+     *
+     * @return 永远 false：调用方不需要为此暂停状态机。
+     */
+    boolean setForceWindowMode(boolean force) {
+        forceWindowMode = force;
+        return false;
+    }
+
+    /**
+     * 切换诗句层的挂载容器。
+     *
+     * <p>只有「旧容器还有诗句层挂着，且新容器不同」时才拆。锁屏↔解锁会换宿主，
+     * 但若诗句层已经不在旧容器里（例如还在窗口里），就不要再摘一次。
+     */
     boolean setStatusContainer(View v) {
         boolean replaced = false;
-        if (overlay != null && statusContainer != null && statusContainer != v) {
+        if (overlay != null && overlay.attached && statusContainer != null
+                && statusContainer != v && overlay.getParent() == statusContainer) {
             removeOverlay();
             replaced = true;
         }
@@ -141,10 +174,44 @@ final class PoemRuntime {
     private int statusHeight() {
         View v = statusContainer;
         if (v == null) {
-            return 0;
+            return lastGoodBarHeight > 0 ? lastGoodBarHeight : 0;
         }
-        return v.getHeight() > 0 ? v.getHeight()
-                : (int) (28 * v.getResources().getDisplayMetrics().density);
+        int h = v.getHeight();
+        int sb = statusBarHeight(v);
+        int result;
+        if (sb > 0 && (h <= 0 || h > sb)) {
+            result = sb;
+        } else if (h > 0) {
+            result = h;
+        } else {
+            result = 0;
+        }
+        if (result > 0) {
+            lastGoodBarHeight = result;
+            return result;
+        }
+        // 取不到时按 AOSP 默认 24dp 估算，随密度自适应，不写死像素值。
+        return lastGoodBarHeight > 0
+                ? lastGoodBarHeight
+                : Math.round(24 * v.getResources().getDisplayMetrics().density);
+    }
+
+    /** 最近一次量到的合理状态栏高度，避免容器重建瞬间量到 0 导致文字跳变。 */
+    private int lastGoodBarHeight;
+
+    private static int statusBarHeight(View v) {
+        try {
+            int id = v.getResources().getIdentifier("status_bar_height", "dimen", "android");
+            if (id != 0) {
+                int px = v.getResources().getDimensionPixelSize(id);
+                if (px > 0) {
+                    return px;
+                }
+            }
+        } catch (Throwable ignored) {
+
+        }
+        return 0;
     }
 
     boolean start(String text, int speedPx, boolean bob, Listener l) {
@@ -159,13 +226,49 @@ final class PoemRuntime {
 
         DebugFrames.reset();
 
-        HolePuncher.bindRoot(ViewTree.findContentRoot(statusContainer));
+        View src = occludeHost;
+        if (src == null) {
+            HolePuncher.bindRoot(null);
+            overlay.postFrame();
+            return true;
+        }
+        // src 本身已经是整条状态栏、而且不是诗句层的祖先时，就直接用 src。
+        // 锁屏的 KeyguardStatusBarView 属于这种：它整条 1440x112，
+        // 但里面那个 status_bar_container 只包右侧图标区，往里拆会漏掉运营商文字。
+        //
+        // 解锁的 StatusBarWindowView 虽然也是 1440x112，但它是诗句层的父级，
+        // 必须继续走 findOccludeRoot 拆到 status_bar_container。
+        View occludeRoot;
+        if (ViewTree.isFullBar(src) && !HolePuncher.isAncestorOfOverlay(src, overlay)) {
+            occludeRoot = src;
+        } else {
+            occludeRoot = ViewTree.findOccludeRoot(src);
+            if (occludeRoot == null) {
+                occludeRoot = src;
+            }
+        }
+        // 挖洞根一旦是诗句层的祖先，clipOutRect 就会把诗句一起裁掉，
+        // 只能靠补画打补丁，等于每帧画两遍。宁可放弃挖洞也不能这样。
+        if (HolePuncher.isAncestorOfOverlay(occludeRoot, overlay)) {
+            Log.w("POEM occlude root rejected (诗句层祖先)="
+                    + occludeRoot.getClass().getSimpleName());
+            HolePuncher.bindRoot(null);
+            overlay.postFrame();
+            return true;
+        }
+        HolePuncher.bindRoot(occludeRoot);
+        dumpViewChain(occludeRoot);
+        dumpMountTree();
+        Log.diag("POEM occlude " + HolePuncher.describe());
         HolePuncher.setHoles(configHoles);
         overlay.postFrame();
         return true;
     }
     void updateOcclusion(float l, float t, float r, float b) {
         OverlayView o = overlay;
+        if (o != null && !o.windowMode && o.getParent() instanceof ViewGroup) {
+            keepOnTop((ViewGroup) o.getParent());
+        }
         final int originX = o == null ? 0 : o.screenOriginX;
         final int barW = o == null ? 0 : (o.getWidth() > 0 ? o.getWidth() : o.viewW);
         final int visible = HoleRects.visibleSegments(configHoles,
@@ -194,6 +297,109 @@ final class PoemRuntime {
         HolePuncher.clear();
     }
 
+    private void raiseAboveSiblings() {
+        OverlayView o = overlay;
+        if (o == null || !o.attached || o.windowMode) {
+            return;
+        }
+        ViewGroup g = o.getParent() instanceof ViewGroup ? (ViewGroup) o.getParent() : null;
+        if (g == null) {
+            return;
+        }
+        if (g.getChildCount() > 0 && g.getChildAt(g.getChildCount() - 1) != o) {
+            o.bringToFront();
+            g.invalidate();
+        }
+        if (o.getElevation() < FORCE_ELEVATION_PX) {
+            o.setElevation(FORCE_ELEVATION_PX);
+            o.setTranslationZ(FORCE_ELEVATION_PX);
+        }
+    }
+
+    private void dumpViewChain(View v) {
+        if (!Log.debug()) {
+            return;
+        }
+        if (v == null) {
+            Log.diag("POEM chain v=null");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("POEM chain");
+        View c = v;
+        int depth = 0;
+        while (c != null && depth < 8) {
+            sb.append(" <- ").append(c.getClass().getSimpleName())
+                    .append("[vis=").append(c.getVisibility())
+                    .append(",shown=").append(c.isShown())
+                    .append(",w=").append(c.getWidth())
+                    .append(",h=").append(c.getHeight())
+                    .append("]");
+            if (!(c.getParent() instanceof View)) {
+                break;
+            }
+            c = (View) c.getParent();
+            depth++;
+        }
+        Log.diag(sb.toString());
+        ViewGroup g = v instanceof ViewGroup ? (ViewGroup) v : null;
+        if (g != null) {
+            StringBuilder kids = new StringBuilder("POEM kids n=" + g.getChildCount());
+            int n = Math.min(g.getChildCount(), 12);
+            for (int i = 0; i < n; i++) {
+                View k = g.getChildAt(i);
+                kids.append(" | ").append(i).append(":")
+                        .append(k == null ? "null" : k.getClass().getName())
+                        .append(k == null ? "" : ("[vis=" + k.getVisibility()
+                                + ",h=" + k.getHeight() + "]"));
+            }
+            Log.diag(kids.toString());
+        }
+    }
+
+    private void dumpMountTree() {
+        if (!Log.debug()) {
+            return;
+        }
+        OverlayView o = overlay;
+        if (o == null || !(o.getParent() instanceof ViewGroup)) {
+            Log.diag("POEM mountTree no parent");
+            return;
+        }
+        ViewGroup g = (ViewGroup) o.getParent();
+        StringBuilder sb = new StringBuilder("POEM mountTree "
+                + g.getClass().getName() + " n=" + g.getChildCount());
+        int n = Math.min(g.getChildCount(), 16);
+        for (int i = 0; i < n; i++) {
+            View k = g.getChildAt(i);
+            sb.append(" | ").append(i).append(":")
+                    .append(k == null ? "null" : k.getClass().getName())
+                    .append(k == null ? "" : ("[vis=" + k.getVisibility()
+                            + ",h=" + k.getHeight() + "]"));
+        }
+        Log.diag(sb.toString());
+    }
+
+    /**
+     * 保证诗句层在最上面。
+     *
+     * <p>每帧调用，所以必须极便宜：只在真的被挤下去时才 bringToFront。
+     * bringToFront 会重排整个父容器的子 View 并触发布局，绝不能每帧都做。
+     */
+    private void keepOnTop(ViewGroup g) {
+        OverlayView o = overlay;
+        if (o == null || !o.attached || o.windowMode || g == null) {
+            return;
+        }
+        if (o.getParent() != g) {
+            return;
+        }
+        final int n = g.getChildCount();
+        if (n > 0 && g.getChildAt(n - 1) == o) {
+            return;
+        }
+        o.bringToFront();
+    }
+
     private boolean ensureOverlayAttached() {
         if (overlay != null && overlay.attached) {
             return true;
@@ -202,6 +408,8 @@ final class PoemRuntime {
             overlay = new OverlayView(statusContainer.getContext());
         }
         overlay.listener = listener;
+        Log.diag("POEM attach force=" + forceWindowMode
+                + " parent=" + statusContainer.getClass().getSimpleName());
         if (!attachOverlayView(overlay)) {
             overlay = null;
             return false;
@@ -217,6 +425,9 @@ final class PoemRuntime {
                 ((ViewGroup) parent).addView(v, new ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                 v.attached = true;
+                raiseAboveSiblings();
+                Log.diag("POEM overlay attached as child of "
+                        + parent.getClass().getSimpleName());
                 return true;
             } catch (Throwable t) {
                 Log.w("POEM overlay addView failed: " + t.getClass().getSimpleName());
@@ -239,6 +450,10 @@ final class PoemRuntime {
                             | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                             | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     PixelFormat.TRANSLUCENT);
+            if (forceWindowMode) {
+                lp.flags |= WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
+            }
             lp.gravity = Gravity.TOP | Gravity.START;
             lp.x = loc[0];
             lp.y = loc[1];
@@ -248,6 +463,7 @@ final class PoemRuntime {
             v.windowMode = true;
             v.ownWindowManager = wm;
             windowManager = wm;
+            Log.diag("POEM wm attached w=" + w + " h=" + h + " x=" + loc[0] + " y=" + loc[1]);
             return true;
         } catch (Throwable t) {
             Log.w("POEM wm overlay failed: " + t.getClass().getSimpleName());
@@ -370,7 +586,7 @@ final class PoemRuntime {
             paint.setColor(color);
             textWidth = PoemRuntime.this.measure(paint, value);
             paint.getFontMetrics(fm);
-            startNs = SystemClock.elapsedRealtimeNanos();
+            startNs = System.nanoTime();
             nextTargetNs = startNs;
             lastLeft = w;
             lastTop = 0f;
@@ -415,7 +631,7 @@ final class PoemRuntime {
                 return;
             }
             running = true;
-            startNs = SystemClock.elapsedRealtimeNanos();
+            startNs = System.nanoTime();
             nextTargetNs = startNs;
             frameIntervalNs = FramePacer.intervalNsForSpeed(speed);
             Choreographer.getInstance().postFrameCallback(this);
@@ -571,12 +787,12 @@ final class PoemRuntime {
 
             canvas.restoreToCount(saveCount);
         }
+
         @Override
         protected void onDraw(Canvas canvas) {
             if (text == null || text.isEmpty()) {
                 return;
             }
-
             drawTextWithHoles(canvas);
         }
 

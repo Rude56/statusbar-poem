@@ -7,39 +7,44 @@ import static org.junit.Assert.assertTrue;
 
 public class FramePacerTest {
     @Test
-    public void targetFrameIsAbout33ms() {
-        assertEquals(30, FramePacer.TARGET_FPS);
-        assertEquals(33_333_333L, FramePacer.TARGET_FRAME_NS);
-        assertTrue(FramePacer.TARGET_FRAME_NS * 30L <= 1_000_000_000L);
-    }
-    @Test
-    public void intervalGrowsAtLowSpeedAndCapsAtThirtyFps() {
-
-        assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(600));
-        assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(120));
-
-        assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(60));
-        assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(30));
-
-        assertTrue("低速必须放宽", FramePacer.intervalNsForSpeed(20) >= 50_000_000L);
-        assertTrue("低速不得被压回 30fps",
-                FramePacer.intervalNsForSpeed(20) > FramePacer.TARGET_FRAME_NS);
-    }
-    @Test
-    public void intervalIsBoundedAndSafeForBadSpeed() {
-        assertEquals(FramePacer.MAX_ADAPTIVE_INTERVAL_NS, FramePacer.intervalNsForSpeed(1));
-        assertTrue(FramePacer.intervalNsForSpeed(1) <= FramePacer.MAX_ADAPTIVE_INTERVAL_NS);
-        assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(0));
-        assertEquals(FramePacer.TARGET_FRAME_NS, FramePacer.intervalNsForSpeed(-5));
+    public void fpsFollowsSpeedDividedByEight() {
+        assertEquals(30, FramePacer.fpsForSpeed(240));
+        assertEquals(35, FramePacer.fpsForSpeed(280));
+        assertEquals(60, FramePacer.fpsForSpeed(480));
     }
 
     @Test
-    public void slowerSpeedNeverWakesMoreOften() {
-        long prev = FramePacer.intervalNsForSpeed(1);
-        for (int speed = 2; speed <= 600; speed++) {
+    public void fpsIsClampedBetweenThirtyAndSixty() {
+        assertEquals(FramePacer.MIN_FPS, FramePacer.fpsForSpeed(40));
+        assertEquals(FramePacer.MIN_FPS, FramePacer.fpsForSpeed(0));
+        assertEquals(FramePacer.MIN_FPS, FramePacer.fpsForSpeed(-5));
+        assertEquals(FramePacer.MAX_FPS, FramePacer.fpsForSpeed(480));
+        assertEquals(FramePacer.MAX_FPS, FramePacer.fpsForSpeed(6000));
+    }
+
+    @Test
+    public void intervalMatchesFps() {
+        assertEquals(1_000_000_000L / 30, FramePacer.intervalNsForSpeed(40));
+        assertEquals(1_000_000_000L / 60, FramePacer.intervalNsForSpeed(480));
+        assertEquals(1_000_000_000L / 35, FramePacer.intervalNsForSpeed(280));
+    }
+
+    @Test
+    public void fasterSpeedNeverWakesLessOften() {
+        long prev = FramePacer.intervalNsForSpeed(FramePacer.MIN_FPS);
+        for (int speed = PoemConfig.SPEED_MIN; speed <= PoemConfig.SPEED_MAX; speed++) {
             long cur = FramePacer.intervalNsForSpeed(speed);
-            assertTrue("speed=" + speed + " 的间隔不应小于更慢速度的间隔", cur <= prev);
+            assertTrue("speed=" + speed + " 的间隔不应大于更慢速度的间隔", cur <= prev);
             prev = cur;
         }
+    }
+
+    @Test
+    public void speedRangeCoversWholeClampBand() {
+        assertEquals(40, PoemConfig.SPEED_MIN);
+        assertEquals(480, PoemConfig.SPEED_MAX);
+        assertTrue("默认速度必须落在范围内",
+                PoemConfig.SPEED_DEFAULT >= PoemConfig.SPEED_MIN
+                        && PoemConfig.SPEED_DEFAULT <= PoemConfig.SPEED_MAX);
     }
 }

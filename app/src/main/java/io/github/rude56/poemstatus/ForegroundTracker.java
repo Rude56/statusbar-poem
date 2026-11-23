@@ -87,7 +87,7 @@ final class ForegroundTracker {
         registered = tryRegisterTaskStackListener();
         fallback = !registered;
         if (!registered) {
-            Log.i("CONF push=off fallback=poll reason=task-listener");
+            Log.diag("CONF push=off fallback=poll reason=task-listener");
         }
     }
 
@@ -409,7 +409,7 @@ final class ForegroundTracker {
             Method register = service.getClass().getMethod("registerTaskStackListener", listenerCls);
             register.invoke(service, proxy);
             listenerProxy = proxy;
-            Log.i("CONF task-listener=on");
+            Log.diag("CONF task-listener=on");
             return true;
         } catch (Throwable t) {
             return false;

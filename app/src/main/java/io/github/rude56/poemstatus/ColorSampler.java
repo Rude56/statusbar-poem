@@ -40,7 +40,7 @@ final class ColorSampler {
             lastLogAt = now;
             if (!r.diagnostic().equals(lastDiagnostic)) {
                 lastDiagnostic = r.diagnostic();
-                Log.i(lastDiagnostic);
+                Log.diag(lastDiagnostic);
             }
         } else {
             lastDiagnostic = r.diagnostic();

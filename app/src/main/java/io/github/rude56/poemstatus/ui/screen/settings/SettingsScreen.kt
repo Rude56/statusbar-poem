@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -43,6 +42,8 @@ fun SettingsScreen(bottomInnerPadding: Dp = 0.dp) {
         onSetBob = viewModel::setBob,
         onSetLandscapePause = viewModel::setLandscapePause,
         onSetLockscreenPause = viewModel::setLockscreenPause,
+        onSetDebugLog = viewModel::setDebugLog,
+        onExportLog = { },
     )
 
     when (LocalUiMode.current) {

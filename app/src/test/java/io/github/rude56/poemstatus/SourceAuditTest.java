@@ -276,7 +276,13 @@ public class SourceAuditTest {
         String conn = source("ui/util/ConnectionStatus.kt");
         assertTrue("共享文件必须读这个时间戳",
                 conn.contains("ConfigProvider.lastSystemUiCallAt()"));
-        assertTrue("共享文件必须有超时判定", conn.contains("secondsAgo in 0..10"));
+        // 超时窗口存在即可，具体秒数不锁死。
+        assertTrue("共享文件必须有超时判定",
+                conn.contains("CONNECTED_WINDOW_SECONDS"));
+        // 回归：App 冷启时时间戳可能是 0 或上次会话的旧值，
+        // 首帧必然判成断开 → 界面闪一下「未激活」。必须有「未知」状态。
+        assertTrue("必须区分「还不知道」和「明确断开」",
+                conn.contains("connectionState") && conn.contains("null"));
 
         for (String f : new String[]{"ui/screen/home/HomeScreen.kt", "ui/screen/status/StatusScreen.kt"}) {
             String text = source(f);
@@ -314,8 +320,12 @@ public class SourceAuditTest {
                 entries.add(t);
             }
         }
-        assertEquals("作用域必须唯一", 1, entries.size());
-        assertEquals("作用域只能是 SystemUI", FeatureAudit.SCOPE_PACKAGE, entries.get(0));
+        assertEquals("作用域只能有 SystemUI", 1, entries.size());
+        assertTrue("必须包含 SystemUI", entries.contains(FeatureAudit.SCOPE_PACKAGE));
+        for (String e : entries) {
+            assertTrue("作用域不得包含第三方应用: " + e,
+                    e.equals(FeatureAudit.SCOPE_PACKAGE));
+        }
 
         String prop = read(propFile);
         assertTrue("必须声明静态作用域", prop.contains("staticScope=true"));
@@ -367,9 +377,11 @@ public class SourceAuditTest {
     public void moduleEntryOnlyHandlesSystemUi() throws IOException {
         String text = source("ModuleMain.java");
         assertTrue("必须按包名过滤",
-                text.contains("FeatureAudit.SCOPE_PACKAGE.equals(param.getPackageName())"));
+                text.contains("FeatureAudit.SCOPE_PACKAGE.equals(pkg)"));
         assertTrue("必须打 INJECTED 日志", text.contains("INJECTED process="));
         assertTrue("必须继承现代入口基类", text.contains("extends XposedModule"));
+        assertFalse("不得再往 system_server 注入（LSPosed 2.2.x 实测从不注入）",
+                text.contains("inSystemServer()"));
 
         for (String f : new String[]{"ModuleMain.java", "SystemUiController.java"}) {
             String s = source(f);
@@ -396,7 +408,7 @@ public class SourceAuditTest {
     @Test
     public void pauseReasonsAreAllImplemented() throws IOException {
         String text = source("SystemUiController.java");
-        for (String reason : new String[]{"disabled", "screen-off", "landscape", "whitelist", "view-unavailable", "guard"}) {
+        for (String reason : new String[]{"disabled", "screen-off", "fullscreen", "landscape", "whitelist", "view-unavailable", "guard"}) {
             assertTrue("缺少暂停原因: " + reason, text.contains(reason));
         }
     }
@@ -1247,5 +1259,109 @@ public class SourceAuditTest {
         }
         String registry = source("ui/util/TopTabScrollRegistry.kt");
         assertTrue("注册表必须存在 rescroll", registry.contains("fun rescroll("));
+    }
+
+    /** 去掉 // 与 块注释，只留真正的代码，避免注释里的反例说明被误判。 */
+    private static String stripComments(String text) {
+        return text.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)//[^\\n]*", " ");
+    }
+
+    /**
+     * 全屏判据必须读 SystemUI 自己窗口的 metrics。
+     *
+     * <p>回归背景：曾经用 StatusBarWindowView.getRootWindowInsets() 判断，
+     * 但状态栏窗口是 statusBars inset 的「提供者」，读自己给出去的 inset 恒为 0，
+     * 且一旦变 false 就永不更新 —— 经历一次锁屏/全屏后诗句被永久卡死。
+     * 真机三阶段实测（桌面 true / 全屏 false / 下滑唤出 true）只有 metrics 这一路正确。
+     */
+    @Test
+    public void fullscreenUsesConsumerWindowMetrics() throws IOException {
+        String watcherCode = stripComments(source("FullscreenWatcher.java"));
+        assertTrue("必须用 getCurrentWindowMetrics 拿消费方视角的 insets",
+                watcherCode.contains("getCurrentWindowMetrics()"));
+        assertTrue("必须按 statusBars 的可见性判断",
+                watcherCode.contains("isVisible") && watcherCode.contains("Type.statusBars()"));
+        assertFalse("绝不能读状态栏窗口自己的 rootWindowInsets（会永久卡死）",
+                watcherCode.contains("getRootWindowInsets()"));
+        String controller = source("SystemUiController.java");
+        String pauseCode = stripComments(bodyOf(controller, "private String pauseReason()"));
+        assertFalse("暂停判定里不得再出现 getRootWindowInsets 作为全屏判据",
+                pauseCode.contains("getRootWindowInsets"));
+        assertTrue("全屏必须作为独立暂停原因", pauseCode.contains("\"fullscreen\""));
+        assertTrue("必须调用 FullscreenWatcher", pauseCode.contains("FullscreenWatcher."));
+    }
+
+    /**
+     * 跨机型适配：不许把某个机型的像素值写死在逻辑里。
+     *
+     * <p>回归背景：曾经把状态栏高度写死成 112px（只对 1440x3200/640dpi 成立），
+     * 挖洞根的「整屏」判定写死 400px。1080p / 1.5K / 2K 机型状态栏高度差别很大，
+     * 写死会让 isFullBar、tallRoot 这类尺寸判断直接错掉，表现为挖洞挖错位置或不挖。
+     *
+     * <p>正确做法：优先取系统 {@code status_bar_height} 资源，取不到按 24dp × density 估算。
+     */
+    @Test
+    public void noHardcodedDevicePixelAssumptions() throws IOException {
+        String viewTree = stripComments(source("ViewTree.java"));
+        assertFalse("ViewTree 不得把状态栏高度写死成 112",
+                viewTree.contains("barH = 112"));
+        assertTrue("状态栏高度必须走系统资源",
+                viewTree.contains("\"status_bar_height\""));
+        assertTrue("取不到时按密度估算（24dp）",
+                viewTree.contains("24 *") || viewTree.contains("24*"));
+
+        String puncher = stripComments(source("HolePuncher.java"));
+        assertFalse("整屏判定不得写死 400px",
+                puncher.contains("> 400"));
+        assertTrue("整屏判定必须以状态栏高度为基准",
+                puncher.contains("statusBarHeightPx"));
+
+        String controller = stripComments(source("SystemUiController.java"));
+        assertFalse("状态栏高度不得写死成 112",
+                controller.contains(": 112"));
+        assertTrue("状态栏高度必须走实测或系统资源",
+                controller.contains("statusBarHeightPx"));
+    }
+
+    /**
+     * 挖洞根落到框架基类时必须留下明确告警，方便换机型后定位性能问题。
+     */
+    @Test
+    public void baseClassHookIsReported() throws IOException {
+        String controller = stripComments(source("SystemUiController.java"));
+        assertTrue("必须识别框架基类", controller.contains("isBaseFrameworkClass"));
+        assertTrue("挂到全进程基类时必须告警",
+                controller.contains("打在全进程基类"));
+        assertTrue("热路径必须用便宜的实例判定",
+                source("HolePuncher.java").contains("isRootFast"));
+    }
+
+    /**
+     * 状态栏窗口类名要有多个候选，不能只认一个包路径（不同 ROM 会挪包改名）。
+     */
+    @Test
+    public void statusBarWindowLookupHasFallbacks() throws IOException {
+        String controller = source("SystemUiController.java");
+        assertTrue("必须优先 AOSP 13+ 的 statusbar.window 包",
+                controller.contains("statusbar.window.StatusBarWindowView"));
+        assertTrue("必须兼容旧版 statusbar.phone 包",
+                controller.contains("statusbar.phone.StatusBarWindowView"));
+        assertTrue("查找逻辑必须抽成可扩展的方法",
+                controller.contains("findStatusBarWindowClass"));
+    }
+
+    /**
+     * 锁屏顶栏查找必须有多级兜底：精确类名 → 类名片段 → Compose 容器
+     * → 资源 id → 几何特征。第三方 ROM 会改名或 Compose 化后丢掉 id。
+     */
+    @Test
+    public void keyguardStatusBarLookupHasFallbacks() throws IOException {
+        String controller = source("SystemUiController.java");
+        assertTrue("必须支持类名片段匹配",
+                controller.contains("KeyguardStatusBar") && controller.contains("findBySimpleNameContains"));
+        assertTrue("必须有几何兜底", controller.contains("findTopBand"));
+        String viewTree = source("ViewTree.java");
+        assertTrue("几何兜底必须存在实现", viewTree.contains("static View findTopBand("));
+        assertTrue("片段匹配必须存在实现", viewTree.contains("findBySimpleNameContains("));
     }
 }

@@ -54,6 +54,7 @@ class SettingsViewModel(
                     bobEnabled = cfg.bobEnabled,
                     landscapePause = cfg.landscapePause,
                     lockscreenPause = cfg.lockscreenPause,
+                    debugLog = cfg.debugLog,
 
                     holeCount = holes.size,
                     whitelistCount = cfg.whitelist.size,
@@ -217,5 +218,12 @@ class SettingsViewModel(
         next.lockscreenPause = pause
         AppState.persist(app, next)
         _uiState.update { it.copy(lockscreenPause = pause) }
+    }
+
+    fun setDebugLog(on: Boolean) {
+        val next = AppState.config.value.copy()
+        next.debugLog = on
+        AppState.persist(app, next)
+        _uiState.update { it.copy(debugLog = on) }
     }
 }

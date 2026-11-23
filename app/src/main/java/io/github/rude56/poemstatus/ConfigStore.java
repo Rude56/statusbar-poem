@@ -31,6 +31,7 @@ public final class ConfigStore {
         c.poemsSeeded = sp.getBoolean(ConfigKeys.POEMS_SEEDED, false);
         c.holesJson = sp.getString(ConfigKeys.HOLES_JSON, "");
         c.configRevision = sp.getLong(ConfigKeys.CONFIG_REVISION, 0L);
+        c.debugLog = sp.getBoolean(ConfigKeys.DEBUG_LOG, false);
         c.whitelist = new ArrayList<>();
         String wl = sp.getString(ConfigKeys.WHITELIST, "");
         if (wl != null && !wl.isEmpty()) {
@@ -76,6 +77,7 @@ public final class ConfigStore {
         e.putBoolean(ConfigKeys.POEMS_SEEDED, c.poemsSeeded);
         e.putString(ConfigKeys.HOLES_JSON, c.holesJson == null ? "" : c.holesJson);
         e.putLong(ConfigKeys.CONFIG_REVISION, c.configRevision);
+        e.putBoolean(ConfigKeys.DEBUG_LOG, c.debugLog);
         e.apply();
     }
 

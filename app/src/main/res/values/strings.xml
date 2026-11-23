@@ -48,6 +48,10 @@
     <string name="landscape_pause_desc">横屏状态栏布局不一样，暂停更稳妥</string>
     <string name="lockscreen_pause">锁屏时暂停</string>
     <string name="lockscreen_pause_desc">锁屏界面不滚诗，解锁后继续</string>
+    <string name="debug_log">调试日志</string>
+    <string name="debug_log_desc">关闭所有限频，输出 View 层级、挂载过程、每帧绘制与状态流转。排查问题后请关闭，否则日志量极大。</string>
+    <string name="export_log">导出日志</string>
+    <string name="export_log_desc">把最近的诊断日志导出为文本文件（需先打开调试日志，并让状态栏播放过一首）</string>
     <string name="whitelist_entry_desc">这些应用在前台时暂停滚动</string>
     <string name="restart_systemui">重启系统界面</string>
     <string name="restart_systemui_desc">装好或更新模块后要重启一次才会生效。需要 root 权限。</string>

@@ -472,7 +472,9 @@ public class PowerRegressionTest {
         assertTrue("容器替换必须能通知控制器复位", setContainer.contains("return replaced"));
         String attach = bodyOf(source("SystemUiController.java"),
                 "private void onStatusBarAttached(View window)");
-        assertTrue("容器替换后必须复位状态机", attach.contains("view-replaced"));
+        assertTrue("容器替换后必须复位状态机",
+                bodyOf(source("SystemUiController.java"), "private void tickInner()")
+                        .contains("view-replaced"));
         assertFalse("attach 不得绕过熄屏判定直接安排固定心跳",
                 attach.contains("startHeartbeat()"));
         assertTrue("attach 必须走尊重屏幕/启用状态的心跳调度",

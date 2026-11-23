@@ -34,6 +34,7 @@ public final class ConfigCodec {
             o.put(ConfigKeys.WHITELIST_SEEDED, cfg.whitelistSeeded);
             o.put(ConfigKeys.HOLES_JSON, cfg.holesJson == null ? "" : cfg.holesJson);
             o.put(ConfigKeys.CONFIG_REVISION, cfg.configRevision);
+            o.put(ConfigKeys.DEBUG_LOG, cfg.debugLog);
         } catch (Throwable ignored) {
 
         }
@@ -76,6 +77,7 @@ public final class ConfigCodec {
         c.whitelistSeeded = o.optBoolean(ConfigKeys.WHITELIST_SEEDED, false);
         c.holesJson = o.optString(ConfigKeys.HOLES_JSON, "");
         c.configRevision = o.optLong(ConfigKeys.CONFIG_REVISION, 0L);
+        c.debugLog = o.optBoolean(ConfigKeys.DEBUG_LOG, c.debugLog);
         return c.normalized();
     }
 

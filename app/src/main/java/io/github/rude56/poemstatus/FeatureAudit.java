@@ -14,6 +14,8 @@ public final class FeatureAudit {
     /** 只读配置通道：SystemUI 通过 ContentResolver.call 读取，token 防止第三方读走配置。 */
     public static final String PROVIDER_AUTHORITY = "io.github.rude56.poemstatus.config";
     public static final String PROVIDER_METHOD = "poem_get_config";
+    /** 调试日志回传：SystemUI 写不了磁盘，由模块进程落盘。 */
+    public static final String PROVIDER_LOG_METHOD = "poem_push_log";
     public static final String PROVIDER_TOKEN = "poem-status-hook-v1";
 
     public static final String TAG = "PoemStatus";

@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class PoemConfig {
-    public static final int SPEED_MIN = 20;
-    public static final int SPEED_MAX = 600;
+    public static final int SPEED_MIN = 40;
+    public static final int SPEED_MAX = 480;
     public static final int SPEED_DEFAULT = 120;
 
     public static final String[] WHITELIST_DEFAULTS = {
@@ -24,6 +24,7 @@ public final class PoemConfig {
     public boolean bobEnabled = false;
     public boolean landscapePause = true;
     public boolean lockscreenPause = true;
+    public boolean debugLog = false;
     public String orderMode = PoemLibrary.ORDER_SEQUENTIAL;
     public List<String> whitelist = new ArrayList<>();
 
@@ -102,6 +103,7 @@ public final class PoemConfig {
         c.bobEnabled = bobEnabled;
         c.landscapePause = landscapePause;
         c.lockscreenPause = lockscreenPause;
+        c.debugLog = debugLog;
         c.orderMode = orderMode;
         c.whitelist = whitelist == null ? new ArrayList<>() : new ArrayList<>(whitelist);
         c.whitelistSeeded = whitelistSeeded;

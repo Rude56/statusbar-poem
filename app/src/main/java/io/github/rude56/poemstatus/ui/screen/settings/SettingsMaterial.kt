@@ -129,7 +129,7 @@ fun SettingsMaterial(
                             title = stringResource(R.string.speed_label),
                             summary = stringResource(R.string.speed_desc),
                             value = state.speedPx,
-                            range = 20..600,
+                            range = 40..480,
                             unit = stringResource(R.string.px_per_second),
                             onValueChange = actions.onSetSpeed,
                         )

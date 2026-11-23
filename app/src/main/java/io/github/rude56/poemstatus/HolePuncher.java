@@ -13,12 +13,16 @@ final class HolePuncher {
     private static final int HOLE_PAD_PX = 2;
     static boolean installed;
     private static View root;
+    /** 挖洞根的 identityHashCode，供热路径 isRootFast 快速挡掉无关实例。 */
+    private static int rootIdentity;
     private static int rootLeft, rootTop, rootRight, rootBottom;
     private static final int MAX_SEGMENTS = (HoleRects.MAX_HOLES + 1) * (HoleRects.MAX_HOLES + 1);
     private static final int[] segLeft = new int[MAX_SEGMENTS];
     private static final int[] segRight = new int[MAX_SEGMENTS];
     private static int segCount;
     private static boolean poemValid;
+    private static boolean tallRoot;
+    private static boolean inDraw;
     private static final ClipStack clips = new ClipStack();
     private static long lastInvalidateAt;
     private static final List<HoleRects.Hole> holes = new ArrayList<>(8);
@@ -51,7 +55,34 @@ final class HolePuncher {
 
     static void bindRoot(View v) {
         root = v;
+        rootIdentity = v == null ? 0 : System.identityHashCode(v);
         refreshBounds();
+        // 「整屏根」= 比状态栏本身高得多。用 root 自己的状态栏高度做基准，
+        // 而不是写死 400px（那个阈值只对高分辨率机型成立）。
+        final int h = rootBottom - rootTop;
+        int barH = v == null ? 0 : ViewTree.statusBarHeightPx(v);
+        if (barH <= 0) {
+            barH = 24 * 3;
+        }
+        tallRoot = v != null && h > HOLE_PAD_PX * 8 && h > barH * 3;
+        RootHook hk = rootHook;
+        if (hk != null && v != null) {
+            try {
+                hk.onRoot(v);
+            } catch (Throwable ignored) {
+
+            }
+        }
+    }
+
+    interface RootHook {
+        void onRoot(View v);
+    }
+
+    private static volatile RootHook rootHook;
+
+    static void setRootHook(RootHook h) {
+        rootHook = h;
     }
 
     static void refreshBounds() {
@@ -97,6 +128,8 @@ final class HolePuncher {
         segCount = limit;
         dirtyL = minL;
         dirtyR = maxR;
+        bandTop = top;
+        bandBottom = bottom;
         long now = SystemClock.uptimeMillis();
         if (now - lastInvalidateAt < INVALIDATE_INTERVAL_MS) {
             return;
@@ -110,6 +143,8 @@ final class HolePuncher {
 
     private static int dirtyL;
     private static int dirtyR;
+    private static float bandTop;
+    private static float bandBottom;
     private static void erasePrevious(boolean hadPrev, int l, int r) {
         if (root == null || !hadPrev) {
             return;
@@ -124,8 +159,17 @@ final class HolePuncher {
         }
         int l = Math.max(0, screenL - rootLeft - HOLE_PAD_PX);
         int r = Math.min(rootRight - rootLeft, screenR - rootLeft + HOLE_PAD_PX);
-        if (r > l) {
-            v.invalidate(l, 0, r, rootBottom - rootTop);
+        int t;
+        int b;
+        if (tallRoot) {
+            t = Math.max(0, (int) Math.floor(bandTop - rootTop) - HOLE_PAD_PX);
+            b = Math.min(rootBottom - rootTop, (int) Math.ceil(bandBottom - rootTop) + HOLE_PAD_PX);
+        } else {
+            t = 0;
+            b = rootBottom - rootTop;
+        }
+        if (r > l && b > t) {
+            v.invalidate(l, t, r, b);
         }
     }
 
@@ -146,8 +190,29 @@ final class HolePuncher {
         return installed && v != null && v == root;
     }
 
+    /**
+     * 极热的快速判定。挖洞根若落到框架基类（如 ViewGroup.dispatchDraw），
+     * 这个判断会被全进程每个同类 View 的每次绘制调用一次，所以必须便宜。
+     *
+     * <p>用 {@code installed} 布尔短路 + identityHashCode 整数比较，
+     * 绝大多数实例在第一次整数比较就被挡掉。实测该机型就是 ViewGroup 基类，
+     * 这条路径每帧要跑几千次，所以单独抽出来。
+     */
+    static boolean isRootFast(View v) {
+        if (!installed || v == null) {
+            return false;
+        }
+        if (System.identityHashCode(v) != rootIdentity) {
+            return false;
+        }
+        return v == root;
+    }
+
     static boolean beginClip(Canvas canvas, View view) {
         if (canvas == null || view == null || view != root) {
+            return false;
+        }
+        if (inDraw) {
             return false;
         }
         if (!poemValid || segCount <= 0) {
@@ -156,28 +221,78 @@ final class HolePuncher {
 
         if (segCount > 1 && DebugFrames.pending()) {
             DebugFrames.consume();
-            Log.i("POEM clip segs=" + segCount
-                    + " first=" + segLeft[0] + "-" + segRight[0]
-                    + " last=" + segLeft[segCount - 1] + "-" + segRight[segCount - 1]
+            Log.diag("POEM clip segs=" + segCount
+                    + " root=" + (root == null ? "null" : root.getClass().getSimpleName())
+                    + " tall=" + tallRoot
+                    + " band=" + (int) bandTop + "-" + (int) bandBottom
                     + " rootBox=" + rootLeft + "," + rootTop + "-" + rootRight + "," + rootBottom);
         }
         if (!clips.push(canvas.save())) {
             return false;
         }
+        final float top;
+        final float bottom;
+        if (tallRoot) {
+            top = Math.max(0f, bandTop - rootTop - HOLE_PAD_PX);
+            bottom = Math.min(rootBottom - rootTop, bandBottom - rootTop + HOLE_PAD_PX);
+            if (bottom <= top) {
+                clips.pop();
+                return false;
+            }
+        } else {
+            top = 0f;
+            bottom = rootBottom - rootTop;
+        }
         for (int i = 0; i < segCount; i++) {
 
             float l = segLeft[i] - rootLeft - HOLE_PAD_PX;
             float r = segRight[i] - rootLeft + HOLE_PAD_PX;
-            canvas.clipOutRect(l, -HOLE_PAD_PX, r, (rootBottom - rootTop) + HOLE_PAD_PX);
+            canvas.clipOutRect(l, top, r, bottom);
         }
+        inDraw = true;
         return true;
     }
 
     static void endClip(Canvas canvas) {
+        inDraw = false;
         int saveCount = clips.pop();
         if (saveCount < 0 || canvas == null) {
             return;
         }
         canvas.restoreToCount(saveCount);
+    }
+
+    /**
+     * 挖洞根绝不能是诗句层的祖先。
+     *
+     * <p>否则 clipOutRect 会把诗句一起裁掉，只能靠「抑制自己 + 根上补画」打补丁，
+     * 那会让同一帧画两遍诗句：残影、卡顿、解锁发虚。宁可放弃挖洞也不能这样。
+     */
+    static boolean isAncestorOfOverlay(View candidate, View overlay) {
+        if (candidate == null || overlay == null) {
+            return false;
+        }
+        View p = overlay;
+        for (int i = 0; i < 32 && p != null; i++) {
+            if (p == candidate) {
+                return true;
+            }
+            p = p.getParent() instanceof View ? (View) p.getParent() : null;
+        }
+        return false;
+    }
+
+    /** 一行诊断：根、尺寸、是否整屏、当前洞。 */
+    static String describe() {
+        View v = root;
+        if (v == null) {
+            return "root=null";
+        }
+        return "root=" + v.getClass().getSimpleName()
+                + " box=" + (rootRight - rootLeft) + "x" + (rootBottom - rootTop)
+                + " at=" + rootLeft + "," + rootTop
+                + " tall=" + tallRoot
+                + " segs=" + segCount
+                + " valid=" + poemValid;
     }
 }

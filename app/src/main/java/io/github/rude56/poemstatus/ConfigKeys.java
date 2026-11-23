@@ -18,6 +18,7 @@ public final class ConfigKeys {
 
     public static final String HOLES_JSON = "holesJson";
     public static final String CONFIG_REVISION = "configRevision";
+    public static final String DEBUG_LOG = "debugLog";
     public static final String[] ALL = {
             ENABLED,
             SPEED_PX,
@@ -34,6 +35,7 @@ public final class ConfigKeys {
             POEMS_SEEDED,
             HOLES_JSON,
             CONFIG_REVISION,
+            DEBUG_LOG,
     };
 
     public static final String PREFS_NAME = "poem_status_config";

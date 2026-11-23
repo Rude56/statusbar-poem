@@ -72,6 +72,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
@@ -404,6 +405,39 @@ private fun AboutContent(
                         BasicComponent(
                             title = stringResource(R.string.about_offline_title),
                             summary = stringResource(R.string.about_offline_body),
+                        )
+                    }
+                    // 调试日志放在关于页：定位问题时才需要，不该占用设置页的主流程。
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 12.dp)
+                            .then(
+                                if (blurEnabled) {
+                                    Modifier.textureBlur(
+                                        backdrop = backdrop,
+                                        shape = RoundedCornerShape(16.dp),
+                                        blurRadius = 60f,
+                                        colors = BlurColors(blendColors = blendColors),
+                                        enabled = true,
+                                    )
+                                } else Modifier
+                            ),
+                        colors = CardDefaults.defaultColors(
+                            if (blurEnabled) Color.Transparent else colorScheme.surfaceContainer,
+                            Color.Transparent,
+                        ),
+                    ) {
+                        SwitchPreference(
+                            title = stringResource(R.string.debug_log),
+                            summary = stringResource(R.string.debug_log_desc),
+                            checked = state.debugLog,
+                            onCheckedChange = actions.onSetDebugLog,
+                        )
+                        ArrowPreference(
+                            title = stringResource(R.string.export_log),
+                            summary = stringResource(R.string.export_log_desc),
+                            onClick = actions.onExportLog,
                         )
                     }
                     Spacer(

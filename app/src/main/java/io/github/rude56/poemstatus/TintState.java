@@ -50,7 +50,7 @@ final class TintState {
         }
         lightStatusBars = light;
 
-        Log.i("POEM appearance light=" + light + " raw=" + appearance);
+        Log.diag("POEM appearance light=" + light + " raw=" + appearance);
         notifyChanged();
     }
 
