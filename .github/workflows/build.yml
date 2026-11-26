@@ -3,8 +3,6 @@ name: build
 on:
   push:
     branches: [ main ]
-    # 只在这些路径变化时才构建。改 README、LICENSE、文档不该触发一次
-    # 完整的 Android 构建（下 SDK + build-tools + Gradle，十几分钟）。
     paths:
       - 'app/**'
       - 'gradle/**'
@@ -27,10 +25,17 @@ on:
       - 'gradlew.bat'
       - '.github/workflows/build.yml'
   workflow_dispatch:
+    inputs:
+      build_debug:
+        description: '额外产出 debug 包（正式签名、不混淆，能覆盖安装，堆栈可读）'
+        type: boolean
+        default: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      BUILD_DEBUG: ${{ github.event.inputs.build_debug || 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,24 +75,110 @@ jobs:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PROPS: ${{ secrets.KEYSTORE_PROPS }}
         run: |
-          if [ -z "$KEYSTORE_B64" ]; then echo "未配置签名密钥，跳过签名"; exit 0; fi
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+            echo "::warning::未配置 KEYSTORE_B64，本次只能产出 debug 包（无法覆盖安装正式版）。"
+            exit 0
+          fi
           mkdir -p keystore
-          echo "$KEYSTORE_B64" | base64 -d > keystore/release.keystore
-          printf '%s\n' "$KEYSTORE_PROPS" > keystore.properties
+          printf '%s' "$KEYSTORE_B64" | tr -d '\r\n' | base64 -d > keystore/release.keystore
+          printf '%s' "$KEYSTORE_PROPS" | tr -d '\r' > keystore.properties
+          if ! grep -q '^storeFile=' keystore.properties; then
+            echo "::error::KEYSTORE_PROPS 内容不正确，缺少 storeFile 行"
+            exit 1
+          fi
+          KS_SIZE=$(wc -c < keystore/release.keystore | tr -d ' ')
+          if [ "$KS_SIZE" -lt 1000 ]; then
+            echo "::error::KEYSTORE_B64 解出的文件只有 ${KS_SIZE} 字节，Base64 内容可能不完整或带了前缀文字"
+            exit 1
+          fi
+          echo "密钥文件 ${KS_SIZE} 字节"
+          echo "SIGNED=true" >> "$GITHUB_ENV"
 
       - name: Build and test
         run: |
-          if [ -f keystore.properties ]; then
-            ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon
+          TASKS=":app:testDebugUnitTest"
+          if [ "$SIGNED" = "true" ]; then
+            TASKS="$TASKS :app:assembleRelease"
           else
-            ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+            TASKS="$TASKS :app:assembleDebug"
           fi
+          if [ "$BUILD_DEBUG" = "true" ]; then
+            TASKS="$TASKS :app:assembleCiDebug"
+          fi
+          echo "gradle $TASKS"
+          ./gradlew $TASKS --no-daemon
+
+      - name: Collect APKs
+        id: collect
+        run: |
+          mkdir -p out
+          AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 -type f | head -1)
+          if [ -z "$AAPT2" ]; then
+            echo "::error::找不到 aapt2"
+            exit 1
+          fi
+
+          # 不能写 versionName='(.*)'：输出里还有 platformBuildVersionName='17'，
+          # 贪婪匹配会回溯到它。按空格切词后做精确前缀匹配。
+          read_code() {
+            "$AAPT2" dump badging "$1" 2>/dev/null | head -1 | tr ' ' '\n' \
+              | sed -n "s/^versionCode='\([0-9]*\)'$/\1/p"
+          }
+          read_name() {
+            "$AAPT2" dump badging "$1" 2>/dev/null | head -1 | tr ' ' '\n' \
+              | sed -n "s/^versionName='\([^']*\)'$/\1/p"
+          }
+
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            SRC_APK=app/build/outputs/apk/release/app-release.apk
+            CODE=$(read_code "$SRC_APK"); NAME=$(read_name "$SRC_APK")
+            cp "$SRC_APK" "out/statusbar-poem-$NAME.apk"
+          else
+            SRC_APK=app/build/outputs/apk/debug/app-debug.apk
+            CODE=$(read_code "$SRC_APK"); NAME=$(read_name "$SRC_APK")
+            cp "$SRC_APK" "out/statusbar-poem-$NAME-debug-unsigned.apk"
+          fi
+
+          if [ -f app/build/outputs/apk/ciDebug/app-ciDebug.apk ]; then
+            cp app/build/outputs/apk/ciDebug/app-ciDebug.apk "out/statusbar-poem-$NAME-debug.apk"
+          fi
+
+          if [ -z "$CODE" ] || [ -z "$NAME" ]; then
+            echo "::error::读不到 APK 里的版本号（aapt2 输出：$("$AAPT2" dump badging "$SRC_APK" 2>/dev/null | head -1)）"
+            exit 1
+          fi
+          {
+            echo "code=$CODE"
+            echo "name=$NAME"
+          } >> "$GITHUB_OUTPUT"
+          echo "版本：$NAME（versionCode $CODE）"
+
+          if [ -z "$(ls -A out 2>/dev/null)" ]; then
+            echo "::error::没有产出任何 APK"
+            exit 1
+          fi
+          ls -l out
+
+      - name: Summary
+        run: |
+          NAME="${{ steps.collect.outputs.name }}"
+          SIZE=$(du -h "out/statusbar-poem-$NAME.apk" 2>/dev/null | cut -f1)
+          HASH=$(sha256sum "out/statusbar-poem-$NAME.apk" 2>/dev/null | cut -d' ' -f1)
+
+          {
+            if [ -n "$SIZE" ]; then
+              printf '`%s` · %s · sha256 `%s`\n' "$NAME" "$SIZE" "$HASH"
+            else
+              printf '未配置 `KEYSTORE_B64` / `KEYSTORE_PROPS`，本次只有未签名包。\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          cat "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: statusbar-poem
-          path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
+          name: statusbar-poem-${{ steps.collect.outputs.name }}
+          path: out/*.apk
           if-no-files-found: error

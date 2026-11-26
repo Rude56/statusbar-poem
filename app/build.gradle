@@ -47,6 +47,24 @@ android {
     buildTypes {
         debug {
         }
+        // CI 手动勾选的「可安装 debug 包」：正式签名 + 不混淆。
+        //
+        // 刻意不设 debuggable true：AGP 对 debuggable 的构建类型会强制关闭所有
+        // 优化，实测 APK 从 3.8 MB 涨到 72 MB，且会盖掉 proguard 的任何配置。
+        // "堆栈可读" 靠 -dontobfuscate 就够了。
+        ciDebug {
+            initWith debug
+            debuggable false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro',
+                    'proguard-debug-readable.pro'
+            matchingFallbacks = ['debug']
+            if (rootProject.file('keystore.properties').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
         release {
             minifyEnabled true
             shrinkResources true
