@@ -1,4 +1,10 @@
-# 入口类由 java_init.list 反射实例化，名字与构造函数不能被裁掉或改名。
+# 不混淆。开源项目混淆没有保护意义，反而让日志与堆栈难读；
+# 这个模块大量靠反射按类名/方法名找状态栏窗口，混淆还容易踩 -keep 漏配的坑。
+# 压缩与裁剪照旧（minifyEnabled 仍为 true），只放弃改名。
+-dontobfuscate
+
+# 入口类由 java_init.list 反射实例化，名字与构造函数不能被裁掉。
+# 保留 -keepnames 作为双保险：-dontobfuscate 之外的构建若被打开也能用。
 -keep,allowoptimization,allowobfuscation public class * extends io.github.libxposed.api.XposedModule {
     public <init>();
 }
